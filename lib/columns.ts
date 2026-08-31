@@ -4,9 +4,13 @@ import * as THREE from "three";
 export const MAX_HEIGHT = 2;
 /** Grid cell size in meters. */
 export const CELL_SIZE = 1;
-/** Column footprint within its cell (leaves a visible seam between columns). */
-const FOOTPRINT = 0.86;
+/** T-Mobile magenta — the three fastest cells of the session wear it. */
+export const MAGENTA = 0xe20074;
+/** Column footprint in meters (10 × 10 cm pillar centered in its cell). */
+const FOOTPRINT = 0.1;
 const MIN_HEIGHT = 0.06;
+/** How many of the fastest cells are highlighted in brand magenta. */
+const TOP_MAGENTA = 3;
 
 export interface CellStats {
   key: string;
@@ -43,21 +47,24 @@ export function speedColor(t: number, out = new THREE.Color()): THREE.Color {
 
 interface Cell extends CellStats {
   body: THREE.Mesh<THREE.BoxGeometry, THREE.MeshStandardMaterial>;
+  edges: THREE.LineSegments<THREE.EdgesGeometry, THREE.LineBasicMaterial>;
   cap: THREE.Mesh<THREE.BoxGeometry, THREE.MeshBasicMaterial>;
   height: number;
   targetHeight: number;
 }
 
 /**
- * The AR heatmap itself: one translucent column per 1 m × 1 m floor cell.
+ * The AR heatmap itself: one 10 × 10 cm pillar per 1 m × 1 m floor cell.
  * Each cell remembers the best throughput measured inside it; heights and
  * colors are normalized against the session-wide best, so the fastest cell
- * always stands MAX_HEIGHT tall and fully green.
+ * always stands MAX_HEIGHT tall — and the TOP_MAGENTA fastest cells are
+ * rendered in T-Mobile magenta instead of the gradient.
  */
 export class ColumnField {
   readonly group = new THREE.Group();
   private cells = new Map<string, Cell>();
   private bodyGeo: THREE.BoxGeometry;
+  private edgesGeo: THREE.EdgesGeometry;
   private capGeo: THREE.BoxGeometry;
   sessionBestMbps = 0;
 
@@ -65,6 +72,7 @@ export class ColumnField {
     // unit-height box with its origin at the bottom, so scale.y == height
     this.bodyGeo = new THREE.BoxGeometry(FOOTPRINT, 1, FOOTPRINT);
     this.bodyGeo.translate(0, 0.5, 0);
+    this.edgesGeo = new THREE.EdgesGeometry(this.bodyGeo);
     this.capGeo = new THREE.BoxGeometry(FOOTPRINT, 0.02, FOOTPRINT);
   }
 
@@ -117,9 +125,11 @@ export class ColumnField {
   dispose() {
     for (const cell of this.cells.values()) {
       cell.body.material.dispose();
+      cell.edges.material.dispose();
       cell.cap.material.dispose();
     }
     this.bodyGeo.dispose();
+    this.edgesGeo.dispose();
     this.capGeo.dispose();
     this.cells.clear();
   }
@@ -127,13 +137,19 @@ export class ColumnField {
   private createCell(key: string, ix: number, iz: number): Cell {
     const bodyMat = new THREE.MeshStandardMaterial({
       transparent: true,
-      opacity: 0.55,
-      roughness: 0.35,
+      opacity: 0.85,
+      roughness: 0.3,
       metalness: 0.1,
-      emissiveIntensity: 0.35,
+      emissiveIntensity: 0.45,
       depthWrite: false,
     });
     const body = new THREE.Mesh(this.bodyGeo, bodyMat);
+    // white wireframe over the shaded fill; inherits the body's height scale
+    const edges = new THREE.LineSegments(
+      this.edgesGeo,
+      new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85 })
+    );
+    body.add(edges);
     const capMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.95 });
     const cap = new THREE.Mesh(this.capGeo, capMat);
 
@@ -150,6 +166,7 @@ export class ColumnField {
       bestMbps: 0,
       samples: 0,
       body,
+      edges,
       cap,
       height: 0,
       targetHeight: MIN_HEIGHT,
@@ -158,11 +175,18 @@ export class ColumnField {
 
   private restyleAll() {
     const best = Math.max(this.sessionBestMbps, 0.001);
+    const magentaKeys = new Set(
+      [...this.cells.values()]
+        .sort((a, b) => b.bestMbps - a.bestMbps)
+        .slice(0, TOP_MAGENTA)
+        .map((c) => c.key)
+    );
     const c = new THREE.Color();
     for (const cell of this.cells.values()) {
       const t = cell.bestMbps / best;
       cell.targetHeight = Math.max(MIN_HEIGHT, t * MAX_HEIGHT);
-      speedColor(t, c);
+      if (magentaKeys.has(cell.key)) c.setHex(MAGENTA);
+      else speedColor(t, c);
       cell.body.material.color.copy(c);
       cell.body.material.emissive.copy(c);
       cell.cap.material.color.copy(c);

@@ -1,121 +1,142 @@
-# Signal Columns — AR network heatmap
+# Mapa signálu — AR heatmapa pokrytí
 
-Walk a room in augmented reality while the app measures your **real download
-speed** and turns the floor into a heatmap: every **1 m × 1 m** cell you cross
-grows a column whose **height (up to 2 m)** and **color (red → green)**
-represent the best connection measured in that spot. Cover a whole room and
-you get a physical-looking map of where your signal is strong and where it
-dies.
+Projděte místnost v rozšířené realitě, zatímco aplikace měří **skutečnou
+rychlost stahování**, a proměňte podlahu v heatmapu: na každé buňce
+**1 m × 1 m**, kterou projdete, vyroste sloupec o půdorysu 10 × 10 cm, jehož
+**výška (až 2 m)** a **barva (červená → zelená)** odpovídají nejlepšímu
+připojení naměřenému v daném místě. **Tři nejrychlejší buňky svítí magentou
+(#E20074).** Po projití celé místnosti získáte prostorovou mapu toho, kde je
+signál silný a kde umírá.
 
-Built with **Next.js (App Router)** + **three.js** on the
+Postaveno na **Next.js (App Router)** + **three.js** nad
 [WebXR Device API](https://developer.mozilla.org/en-US/docs/Web/API/WebXR_Device_API),
-designed to deploy on **Vercel**.
+připraveno k nasazení na **Vercel**. Kompletně v češtině, ve vizuálu
+T-Mobile (magenta, písmo TeleNeo).
 
-## How it works
+## Jak to funguje
 
-### World tracking
+### Sledování prostoru
 
-The AR session requests the WebXR
-[`local-floor` reference space](https://immersive-web.github.io/webxr/spatial-tracking-explainer.html):
-a world-anchored, six-degrees-of-freedom coordinate system whose origin sits on
-the real floor at the point where the session starts. Columns are placed in
-that space, so they stay glued to the room while you walk. No markers, no
-image targets — tracking comes from the device's SLAM (ARCore on Android,
-the headset runtime on VR/AR headsets).
+AR relace používá WebXR
+[referenční prostor `local-floor`](https://immersive-web.github.io/webxr/spatial-tracking-explainer.html):
+souřadný systém ukotvený ke světu se šesti stupni volnosti, jehož počátek
+leží na skutečné podlaze v místě startu relace. Sloupce se umisťují v tomto
+prostoru, takže při chůzi zůstávají „přilepené" k místnosti — bez markerů,
+jen díky SLAM trackingu zařízení (ARCore na Androidu, runtime headsetu na
+brýlích). Na podlaze se navíc vykresluje **bílá mřížka po 1 m** zarovnaná
+s buňkami heatmapy, aby bylo mapování v AR čitelné.
 
-The HUD is drawn with the WebXR `dom-overlay` feature, so the live stats float
-over the camera view.
+HUD se vykresluje přes WebXR funkci `dom-overlay`, takže živé statistiky
+plavou nad obrazem kamery.
 
-### Speed testing
+### Měření rychlosti
 
-- `GET /api/payload?bytes=N` — a Next.js server function that streams `N`
-  bytes of **incompressible random data** with `Cache-Control: no-store`, so
-  neither compression nor any CDN/browser cache can fake the measurement.
-- The client (`lib/speedtest.ts`) fetches payloads in a continuous loop and
-  times the body transfer via a streaming reader. Time-to-first-byte is
-  reported as latency; the body transfer time gives throughput in Mbit/s.
-- Payload size **adapts** (32 KB – 4 MB) so each probe takes ≈ 0.7 s on any
-  link — long enough to be meaningful, short enough to map to one spot on the
-  floor.
-- Each finished probe is attributed to where your head actually was
-  **mid-transfer** (a small position ring buffer, `lib/hud.ts`).
+- `GET /api/payload?bytes=N` — serverová funkce Next.js streamující `N`
+  bajtů **nestlačitelných náhodných dat** s hlavičkou
+  `Cache-Control: no-store`, takže měření nezkreslí komprese ani CDN/cache
+  prohlížeče.
+- Klient (`lib/speedtest.ts`) stahuje payloady v nepřetržité smyčce a měří
+  přenos těla odpovědi streamovacím readerem. Doba do prvního bajtu se
+  reportuje jako odezva; z doby přenosu těla se počítá propustnost v Mbit/s.
+- Velikost payloadu se **adaptuje** (32 KB – 4 MB), aby jedno měření trvalo
+  ≈ 0,7 s na jakékoli lince — dost dlouho na smysluplný výsledek, dost
+  krátce na přiřazení k jednomu místu na podlaze.
+- Každé dokončené měření se přiřadí k místu, kde uživatel skutečně byl
+  **uprostřed přenosu** (kruhový buffer poloh, `lib/hud.ts`).
 
-### The columns
+### Zdroj připojení
 
-`lib/columns.ts` keeps one cell per square meter (`floor(x)`, `floor(z)` in
-floor space) and remembers the **best** Mbit/s ever measured inside it.
-Heights and colors are normalized against the **session-wide best**:
+HUD zobrazuje typ připojení přes Network Information API: **červeně Wi-Fi**,
+**magentou mobilní síť**. Prohlížeč ale nedokáže zjistit operátora (jestli
+jsou mobilní data T-Mobile, nebo O2) — proto se před startem zobrazí dialog
+s výzvou vypnout Wi-Fi a zkontrolovat, že je zařízení v síti T-Mobile.
 
-- fastest cell of the session → **2 m tall, green**
-- everything else scales linearly down to red
+### Sloupce
 
-so the map stays meaningful whether your Wi-Fi peaks at 20 or 900 Mbit/s.
-Columns animate smoothly toward their target height and re-normalize whenever
-a new session best is found.
+`lib/columns.ts` vede jednu buňku na čtvereční metr (`floor(x)`, `floor(z)`
+v prostoru podlahy) a pamatuje si **nejlepší** Mbit/s kdy naměřené uvnitř.
+Výšky a barvy se normalizují vůči **maximu celé relace**:
 
-## Running it
+- nejrychlejší buňka relace → **2 m vysoká**
+- vše ostatní se škáluje lineárně dolů k červené
+- **3 nejrychlejší buňky** dostanou místo gradientu **magentu T-Mobile**
+
+takže mapa dává smysl, ať vaše síť vrcholí na 20, nebo 900 Mbit/s. Sloupce
+mají poloprůhlednou výplň s **bílým drátěným modelem (wireframe)** navrch,
+plynule animují ke své cílové výšce a přenormalizují se, kdykoli padne nové
+maximum relace.
+
+## Spuštění
 
 ```bash
 npm install
 npm run dev
 ```
 
-WebXR requires a **secure context**. `http://localhost` counts as secure, but
-your phone can't reach your dev machine as "localhost" — for on-device AR
-testing either:
+WebXR vyžaduje **zabezpečený kontext**. `http://localhost` se počítá jako
+zabezpečený, ale telefon se k vývojovému stroji jako „localhost" nedostane —
+pro testování AR na zařízení buď:
 
-- deploy to Vercel (easiest — see below), or
-- tunnel the dev server (`npx untun tunnel http://localhost:3000`, ngrok, …), or
-- use `adb reverse tcp:3000 tcp:3000` with an Android phone over USB, then
-  open `http://localhost:3000` in Chrome on the phone.
+- nasaďte na Vercel (nejjednodušší — viz níže), nebo
+- tunelujte dev server (`npx untun tunnel http://localhost:3000`, ngrok, …), nebo
+- použijte `adb reverse tcp:3000 tcp:3000` s telefonem Android přes USB a
+  otevřete `http://localhost:3000` v Chromu na telefonu.
 
-### Device support
+### Podpora zařízení
 
-| Platform | AR mode |
+| Platforma | AR režim |
 | --- | --- |
-| Android — Chrome/Edge with [ARCore](https://developers.google.com/ar/devices) | ✅ |
-| Meta Quest / Pico / other headset browsers (passthrough) | ✅ |
-| iOS Safari | ❌ (no WebXR AR — use the desktop simulation) |
-| Desktop browsers | Use **Desktop simulation** |
+| Android — Chrome/Edge s [ARCore](https://developers.google.com/ar/devices) | ✅ |
+| Meta Quest / Pico / jiné prohlížeče v headsetech (passthrough) | ✅ |
+| iOS Safari | ❌ (WebXR AR chybí — použijte simulaci) |
+| Desktopové prohlížeče | Použijte **Simulaci v prohlížeči** |
 
-**Desktop simulation** runs the identical engine and identical real speed
-probes; a virtual walker wanders a 16 m × 16 m room, and because a desktop
-link doesn't vary across your desk, throughput is modulated by a smooth
-synthetic coverage field so you can see the heatmap behave.
+**Simulace v prohlížeči** používá identický engine i identická skutečná
+měření; virtuální sonda prochází místnost 16 m × 16 m, a protože se rychlost
+desktopové linky v prostoru nemění, moduluje se propustnost hladkým
+syntetickým polem pokrytí, aby bylo chování heatmapy vidět.
 
-## Deploying to Vercel
+## Písmo TeleNeo
+
+Rodina **TeleNeo Office** (Regular, Medium, Bold, ExtraBold) je přibalena
+v `public/fonts/` jako woff2 a načítá se přes `@font-face`
+v `app/globals.css`. TeleNeo je proprietární písmo Deutsche Telekom —
+před nasazením mimo kontext T-Mobile ověřte licenci.
+
+## Nasazení na Vercel
 
 ```bash
 npm i -g vercel
 vercel
 ```
 
-…or just import the repo at [vercel.com/new](https://vercel.com/new) — zero
-configuration needed. Vercel serves over HTTPS (required for WebXR) and runs
-`/api/payload` + `/api/ping` as serverless functions.
+…nebo repozitář naimportujte na [vercel.com/new](https://vercel.com/new) —
+bez jakékoli konfigurace. Vercel servíruje přes HTTPS (nutné pro WebXR) a
+`/api/payload` + `/api/ping` běží jako serverless funkce.
 
-> Note: measured throughput is the speed between your device and the nearest
-> Vercel edge/function region — which is exactly what you want for comparing
-> *relative* signal quality across a room.
+> Poznámka: měřená propustnost je rychlost mezi vaším zařízením a nejbližším
+> Vercel regionem — což je přesně to, co chcete pro porovnání *relativní*
+> kvality signálu napříč místností.
 
-## Project layout
+## Struktura projektu
 
 ```
 app/
-  page.tsx            landing page + HUD overlay + mode switching
-  layout.tsx          metadata / viewport
-  globals.css         all styling (landing + HUD)
-  api/payload/route.ts  incompressible random payload (speed test target)
-  api/ping/route.ts     tiny response for latency
+  page.tsx            úvodní stránka + HUD + dialog před startem
+  layout.tsx          metadata / viewport (cs)
+  globals.css         veškeré styly (landing + HUD + modal, TeleNeo)
+  api/payload/route.ts  nestlačitelný náhodný payload (cíl měření)
+  api/ping/route.ts     miniaturní odpověď pro odezvu
 lib/
-  ar.ts               immersive-ar session (local-floor tracking, dom-overlay)
-  sim.ts              desktop preview with a wandering virtual probe
-  columns.ts          the 1 m² column field: grid, normalization, colors
-  speedtest.ts        adaptive continuous download probe
-  hud.ts              HUD state type + position ring buffer
+  ar.ts               immersive-ar relace (local-floor, dom-overlay, bílá mřížka)
+  sim.ts              desktopová simulace s bloudící virtuální sondou
+  columns.ts          pole sloupců 10 × 10 cm: mřížka, normalizace, barvy, top-3 magenta
+  speedtest.ts        adaptivní nepřetržité měření stahování
+  network.ts          typ připojení (Wi-Fi / mobilní síť) přes Network Information API
+  hud.ts              typ stavu HUD + kruhový buffer poloh
 ```
 
-## References
+## Odkazy
 
 - [WebXR spatial tracking explainer](https://immersive-web.github.io/webxr/spatial-tracking-explainer.html)
 - [immersiveweb.dev](https://immersiveweb.dev/)
