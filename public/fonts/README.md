@@ -1,14 +1,8 @@
 # Písmo TeleNeo
 
-TeleNeo je proprietární písmo Deutsche Telekom a z licenčních důvodů není
-součástí repozitáře. Vložte sem soubory rodiny **TeleNeo / TeleNeo Office**
-(k dispozici na brand portálu Telekomu; TTF verze bývá v zipu „TeleNeo
-Office"). CSS hledá tyto názvy:
+Rodina **TeleNeo Office** (Regular, Medium, Bold, ExtraBold) ve formátu
+woff2, načítaná přes `@font-face` v `app/globals.css`.
 
-- `TeleNeo-Regular.woff2` **nebo** `TeleNeoOffice-Regular.ttf`
-- `TeleNeo-Bold.woff2` **nebo** `TeleNeoOffice-Bold.ttf`
-- `TeleNeo-ExtraBold.woff2` **nebo** `TeleNeoOffice-ExtraBold.ttf`
-
-Deklarace `@font-face` v `app/globals.css` je načtou automaticky (přednost
-má lokálně nainstalované písmo, pak woff2, pak ttf). Dokud tu soubory
-nejsou, použije se systémové bezpatkové písmo.
+TeleNeo je proprietární písmo Deutsche Telekom — soubory dodal vlastník
+projektu pro použití v tomto demu pro T-Mobile. Před jiným nasazením
+ověřte licenci na brand portálu Telekomu.

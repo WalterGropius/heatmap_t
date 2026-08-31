@@ -1,29 +1,28 @@
-/* TeleNeo is Deutsche Telekom's proprietary typeface and is not bundled.
-   Drop the .woff2 files into /public/fonts and these declarations pick
-   them up; otherwise the system sans-serif stack is used. */
+/* TeleNeo Office (Deutsche Telekom), served from /public/fonts as woff2. */
 @font-face {
   font-family: "TeleNeo";
-  src: local("TeleNeo Office"),
-    url("/fonts/TeleNeo-Regular.woff2") format("woff2"),
-    url("/fonts/TeleNeoOffice-Regular.ttf") format("truetype");
+  src: url("/fonts/TeleNeo-Regular.woff2") format("woff2");
   font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
   font-family: "TeleNeo";
-  src: local("TeleNeo Office Bold"),
-    url("/fonts/TeleNeo-Bold.woff2") format("woff2"),
-    url("/fonts/TeleNeoOffice-Bold.ttf") format("truetype");
+  src: url("/fonts/TeleNeo-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "TeleNeo";
+  src: url("/fonts/TeleNeo-Bold.woff2") format("woff2");
   font-weight: 700;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
   font-family: "TeleNeo";
-  src: local("TeleNeo Office ExtraBold"),
-    url("/fonts/TeleNeo-ExtraBold.woff2") format("woff2"),
-    url("/fonts/TeleNeoOffice-ExtraBold.ttf") format("truetype");
+  src: url("/fonts/TeleNeo-ExtraBold.woff2") format("woff2");
   font-weight: 800;
   font-style: normal;
   font-display: swap;

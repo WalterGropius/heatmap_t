@@ -98,11 +98,10 @@ syntetickým polem pokrytí, aby bylo chování heatmapy vidět.
 
 ## Písmo TeleNeo
 
-TeleNeo je proprietární písmo Deutsche Telekom a z licenčních důvodů není
-v repozitáři. Vložte soubory `TeleNeo-Regular.woff2`, `TeleNeo-Bold.woff2`
-a `TeleNeo-ExtraBold.woff2` do `public/fonts/` — deklarace `@font-face`
-v `app/globals.css` je načtou automaticky. Bez nich se použije systémové
-bezpatkové písmo.
+Rodina **TeleNeo Office** (Regular, Medium, Bold, ExtraBold) je přibalena
+v `public/fonts/` jako woff2 a načítá se přes `@font-face`
+v `app/globals.css`. TeleNeo je proprietární písmo Deutsche Telekom —
+před nasazením mimo kontext T-Mobile ověřte licenci.
 
 ## Nasazení na Vercel
 
