@@ -2,16 +2,16 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Signal Columns — AR network heatmap",
+  title: "Mapa signálu — AR měření pokrytí",
   description:
-    "WebXR demo: walk a room while live download speed tests paint 1 m² columns onto the floor — height and color encode the best connection measured in each cell.",
+    "WebXR demo: projděte místnost a živé měření rychlosti stahování vykreslí na podlaze sloupce po 1 m² — výška a barva ukazují nejlepší naměřené připojení v každém místě.",
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  themeColor: "#0b1120",
+  themeColor: "#e20074",
 };
 
 export default function RootLayout({
@@ -20,7 +20,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="cs">
       <body>{children}</body>
     </html>
   );

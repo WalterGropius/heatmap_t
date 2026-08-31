@@ -40,6 +40,15 @@ export async function startAR(opts: {
   dir.position.set(2, 4, 1);
   scene.add(dir);
 
+  // white 1 m grid on the real floor, aligned with the heatmap cells,
+  // so the mapping is legible in AR
+  const grid = new THREE.GridHelper(30, 30, 0xffffff, 0xffffff);
+  const gridMat = grid.material as THREE.LineBasicMaterial;
+  gridMat.transparent = true;
+  gridMat.opacity = 0.35;
+  gridMat.depthWrite = false;
+  scene.add(grid);
+
   const field = new ColumnField();
   scene.add(field.group);
 
