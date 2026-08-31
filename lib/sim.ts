@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { ColumnField } from "./columns";
+import { ColumnField, MAGENTA } from "./columns";
 import { SpeedTester, type SpeedSample } from "./speedtest";
 import { PositionTrail, type HudState } from "./hud";
 
@@ -27,8 +27,8 @@ export function startSim(opts: {
   opts.container.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0b1120);
-  scene.fog = new THREE.Fog(0x0b1120, 22, 42);
+  scene.background = new THREE.Color(0x121212);
+  scene.fog = new THREE.Fog(0x121212, 22, 42);
 
   const camera = new THREE.PerspectiveCamera(
     55,
@@ -50,14 +50,14 @@ export function startSim(opts: {
   dir.position.set(6, 10, 4);
   scene.add(dir);
 
-  const grid = new THREE.GridHelper(16, 16, 0x2dd4bf, 0x1e293b);
+  const grid = new THREE.GridHelper(16, 16, 0xffffff, 0xffffff);
   (grid.material as THREE.Material).transparent = true;
-  (grid.material as THREE.Material).opacity = 0.5;
+  (grid.material as THREE.Material).opacity = 0.35;
   scene.add(grid);
 
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(16, 16),
-    new THREE.MeshStandardMaterial({ color: 0x101a2e, roughness: 0.9 })
+    new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.9 })
   );
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = -0.01;
@@ -70,14 +70,14 @@ export function startSim(opts: {
   const walker = new THREE.Group();
   const orb = new THREE.Mesh(
     new THREE.SphereGeometry(0.09, 24, 24),
-    new THREE.MeshBasicMaterial({ color: 0x67e8f9 })
+    new THREE.MeshBasicMaterial({ color: MAGENTA })
   );
   orb.position.y = 1.5;
-  const halo = new THREE.PointLight(0x67e8f9, 3, 4);
+  const halo = new THREE.PointLight(MAGENTA, 3, 4);
   halo.position.y = 1.5;
   const beam = new THREE.Mesh(
     new THREE.CylinderGeometry(0.012, 0.012, 1.5, 8),
-    new THREE.MeshBasicMaterial({ color: 0x67e8f9, transparent: true, opacity: 0.35 })
+    new THREE.MeshBasicMaterial({ color: MAGENTA, transparent: true, opacity: 0.35 })
   );
   beam.position.y = 0.75;
   walker.add(orb, halo, beam);

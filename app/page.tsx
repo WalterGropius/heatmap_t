@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { HudState } from "@/lib/hud";
+import { watchConnection, type ConnectionKind } from "@/lib/network";
 
 type Mode = "landing" | "ar" | "sim";
 
@@ -14,11 +15,25 @@ const EMPTY_HUD: HudState = {
   tracking: false,
 };
 
+const CONN_LABEL: Record<ConnectionKind, string> = {
+  wifi: "Wi-Fi",
+  cellular: "Mobilní síť",
+  ethernet: "Kabel",
+  unknown: "Typ sítě neznámý",
+};
+
+const nf = new Intl.NumberFormat("cs-CZ", {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+});
+
 export default function Home() {
   const [mode, setMode] = useState<Mode>("landing");
   const [arSupported, setArSupported] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hud, setHud] = useState<HudState>(EMPTY_HUD);
+  const [conn, setConn] = useState<ConnectionKind>("unknown");
+  const [pendingMode, setPendingMode] = useState<"ar" | "sim" | null>(null);
 
   const overlayRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -29,13 +44,15 @@ export default function Home() {
     const xr = typeof navigator !== "undefined" ? navigator.xr : undefined;
     if (!xr) {
       setArSupported(false);
-      return;
+    } else {
+      xr.isSessionSupported("immersive-ar")
+        .then((ok) => !cancelled && setArSupported(ok))
+        .catch(() => !cancelled && setArSupported(false));
     }
-    xr.isSessionSupported("immersive-ar")
-      .then((ok) => !cancelled && setArSupported(ok))
-      .catch(() => !cancelled && setArSupported(false));
+    const unwatch = watchConnection(setConn);
     return () => {
       cancelled = true;
+      unwatch();
     };
   }, []);
 
@@ -54,7 +71,7 @@ export default function Home() {
       // the overlay div renders as soon as mode !== 'landing'
       await new Promise((r) => requestAnimationFrame(r));
       const overlay = overlayRef.current;
-      if (!overlay) throw new Error("Overlay not ready");
+      if (!overlay) throw new Error("Overlay není připraven");
       handleRef.current = await startAR({
         overlay,
         onHud: setHud,
@@ -64,8 +81,8 @@ export default function Home() {
       reset();
       setError(
         e instanceof Error
-          ? `Could not start AR: ${e.message}`
-          : "Could not start the AR session."
+          ? `AR se nepodařilo spustit: ${e.message}`
+          : "AR relaci se nepodařilo spustit."
       );
     }
   }, [reset]);
@@ -78,7 +95,7 @@ export default function Home() {
       const { startSim } = await import("@/lib/sim");
       await new Promise((r) => requestAnimationFrame(r));
       const container = stageRef.current;
-      if (!container) throw new Error("Stage not ready");
+      if (!container) throw new Error("Scéna není připravena");
       handleRef.current = startSim({
         container,
         onHud: setHud,
@@ -88,11 +105,18 @@ export default function Home() {
       reset();
       setError(
         e instanceof Error
-          ? `Could not start the simulation: ${e.message}`
-          : "Could not start the simulation."
+          ? `Simulaci se nepodařilo spustit: ${e.message}`
+          : "Simulaci se nepodařilo spustit."
       );
     }
   }, [reset]);
+
+  const confirmStart = useCallback(() => {
+    const m = pendingMode;
+    setPendingMode(null);
+    if (m === "ar") void startAR();
+    else if (m === "sim") void startSim();
+  }, [pendingMode, startAR, startSim]);
 
   const endSession = useCallback(() => {
     handleRef.current?.end();
@@ -105,17 +129,17 @@ export default function Home() {
     return (
       <main className="landing">
         <div className="hero">
-          <span className="badge">WebXR · World Tracking · Live Speed Test</span>
+          <span className="badge">WebXR · Měření pokrytí</span>
           <h1>
-            Walk your room.
+            Projděte místnost.
             <br />
-            <span className="grad">Raise the signal.</span>
+            <span className="grad">Nechte signál růst.</span>
           </h1>
           <p>
-            An augmented-reality network heatmap. As you walk, the app streams
-            test payloads and measures your real download speed. Every 1 m² of
-            floor you cross grows a column — up to 2 m tall for the fastest
-            connection found — with color from red (slow) to green (fast).
+            Aplikace při chůzi průběžně měří skutečnou rychlost stahování a na
+            každém čtverečním metru podlahy nechá vyrůst sloupec — až 2 m
+            vysoký pro nejrychlejší naměřené připojení, barevně od červené po
+            zelenou. Tři nejlepší místa svítí magentou.
           </p>
         </div>
 
@@ -124,65 +148,54 @@ export default function Home() {
         <div className="cta-row">
           <button
             className="btn btn-primary"
-            onClick={startAR}
+            onClick={() => setPendingMode("ar")}
             disabled={arSupported === false}
           >
-            {arSupported === false ? "AR not available here" : "Start AR mapping"}
+            {arSupported === false ? "AR zde není k dispozici" : "Spustit AR měření"}
           </button>
-          <button className="btn btn-ghost" onClick={startSim}>
-            Desktop simulation
+          <button className="btn btn-ghost" onClick={() => setPendingMode("sim")}>
+            Simulace v prohlížeči
           </button>
         </div>
 
         <p className="support-note">
-          AR mode needs a WebXR device — e.g. Chrome on Android (ARCore) or a
-          headset browser — over HTTPS. On desktop, try the simulation: same
-          engine, same real speed tests, virtual walker.
+          AR režim vyžaduje zařízení s podporou WebXR — např. Chrome na
+          Androidu (ARCore) nebo prohlížeč v headsetu — a HTTPS. Na počítači
+          poslouží simulace se stejným enginem i skutečným měřením.
         </p>
 
-        <div className="cards">
-          <div className="card">
-            <div className="icon">🌍</div>
-            <h3>World-anchored tracking</h3>
-            <p>
-              Uses the WebXR <code>local-floor</code> reference space, so
-              columns stay glued to the real floor while you move — six degrees
-              of freedom, no markers.
-            </p>
-          </div>
-          <div className="card">
-            <div className="icon">⚡</div>
-            <h3>Real throughput probes</h3>
-            <p>
-              A Next.js route streams incompressible random payloads with
-              caching disabled; payload size adapts to your link so each probe
-              takes ~0.7 s.
-            </p>
-          </div>
-          <div className="card">
-            <div className="icon">📶</div>
-            <h3>1 m² signal columns</h3>
-            <p>
-              Each square meter keeps its best measurement. Height (max 2 m)
-              and color are normalized to the fastest cell of the session.
-            </p>
-          </div>
-        </div>
+        <div className="footer">Next.js · three.js · WebXR Device API</div>
 
-        <div className="footer">
-          Built with Next.js + three.js ·{" "}
-          <a href="https://immersiveweb.dev/" target="_blank" rel="noreferrer">
-            immersiveweb.dev
-          </a>{" "}
-          ·{" "}
-          <a
-            href="https://developer.mozilla.org/en-US/docs/Web/API/WebXR_Device_API"
-            target="_blank"
-            rel="noreferrer"
-          >
-            WebXR Device API
-          </a>
-        </div>
+        {pendingMode && (
+          <div className="modal-backdrop" onClick={() => setPendingMode(null)}>
+            <div className="modal" onClick={(e) => e.stopPropagation()}>
+              <h2>Než začnete měřit</h2>
+              <p>
+                Vypněte Wi-Fi a zkontrolujte, že jste připojeni přes mobilní
+                data v síti T-Mobile. Prohlížeč nedokáže zjistit operátora,
+                takže správná síť je na vás.
+              </p>
+              <div className={`conn-warn ${conn}`}>
+                {conn === "wifi" &&
+                  "Zařízení je právě na Wi-Fi — před měřením ji vypněte."}
+                {conn === "cellular" &&
+                  "Zařízení je na mobilních datech — můžete začít."}
+                {conn === "ethernet" &&
+                  "Zařízení je na kabelovém připojení."}
+                {conn === "unknown" &&
+                  "Typ připojení se nepodařilo zjistit — zkontrolujte ho ručně."}
+              </div>
+              <div className="modal-actions">
+                <button className="btn btn-ghost" onClick={() => setPendingMode(null)}>
+                  Zrušit
+                </button>
+                <button className="btn btn-primary" onClick={confirmStart}>
+                  Pokračovat
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     );
   }
@@ -194,49 +207,55 @@ export default function Home() {
         <div className="hud-top">
           <div className="hud-panel">
             <div className="hud-speed">
-              {hud.mbps > 0 ? hud.mbps.toFixed(1) : "–"}
+              {hud.mbps > 0 ? nf.format(hud.mbps) : "–"}
               <small>Mbit/s</small>
             </div>
             <div className="hud-substats">
               <span>
                 <b>{hud.latencyMs > 0 ? `${Math.round(hud.latencyMs)} ms` : "–"}</b>
-                latency
+                odezva
               </span>
               <span>
-                <b>{hud.bestMbps > 0 ? hud.bestMbps.toFixed(1) : "–"}</b>
-                best
+                <b>{hud.bestMbps > 0 ? nf.format(hud.bestMbps) : "–"}</b>
+                maximum
               </span>
               <span>
                 <b>{hud.cells}</b>
-                cells
+                buněk
               </span>
               <span>
                 <b>{hud.samples}</b>
-                probes
+                měření
               </span>
             </div>
-            <div className="hud-track">
-              <span className={hud.tracking ? "dot" : "dot lost"} />
-              {hud.tracking ? "tracking" : "acquiring tracking…"}
+            <div className="hud-meta">
+              <span className="hud-track">
+                <span className={hud.tracking ? "dot" : "dot lost"} />
+                {hud.tracking ? "sledování" : "hledám polohu…"}
+              </span>
+              <span className={`conn-chip ${conn}`}>{CONN_LABEL[conn]}</span>
             </div>
           </div>
           <button className="btn-end" onClick={endSession}>
-            End
+            Ukončit
           </button>
         </div>
 
         <div className="hud-bottom">
           <div className="legend">
-            <div className="legend-title">Best speed per 1 m² cell</div>
+            <div className="legend-title">Nejlepší rychlost na buňku 1 m²</div>
             <div className="legend-bar" />
             <div className="legend-scale">
-              <span>slow · 0 m</span>
-              <span>session best · 2 m</span>
+              <span>pomalé · 0 m</span>
+              <span>maximum relace · 2 m</span>
+            </div>
+            <div className="legend-top3">
+              <span className="swatch" />3 nejrychlejší buňky
             </div>
             <div className="hint">
               {mode === "ar"
-                ? "Walk around — columns grow where you have been."
-                : "Drag to orbit · scroll to zoom — the probe walks on its own."}
+                ? "Choďte po místnosti — sloupce rostou tam, kde jste byli."
+                : "Tažením otáčejte · kolečkem přibližujte — sonda chodí sama."}
             </div>
           </div>
         </div>
