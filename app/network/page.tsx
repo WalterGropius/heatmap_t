@@ -22,7 +22,14 @@ export default function NetworkCheckPage() {
   useEffect(() => watchConnection(setConn), []);
 
   const tmobileConfirmed = choice === "yes";
-  const measurementCapable = conn === "cellular" && tmobileConfirmed;
+  // The Network Information API's `type` field (wifi/cellular/ethernet) was
+  // never actually shipped by any browser — only `effectiveType` ("4g" etc.)
+  // is implemented, so `conn` is "unknown" almost everywhere. Gating on
+  // `conn === "cellular"` made the heatmap step unreachable for virtually
+  // everyone regardless of their answer below, so the customer's own
+  // confirmation is the real (and only reliable) signal here; `conn` is
+  // shown only as an advisory hint (e.g. "you look like you're on Wi-Fi").
+  const measurementCapable = tmobileConfirmed;
   const canContinue = choice !== null;
 
   const proceed = () => {
