@@ -1,70 +1,76 @@
-# Mapa signálu — AR heatmapa pokrytí
+# AR instalace FWA routeru
 
-Projděte místnost v rozšířené realitě, zatímco aplikace měří **skutečnou
-rychlost stahování**, a proměňte podlahu v heatmapu: na každé buňce
-**1 m × 1 m**, kterou projdete, vyroste sloupec o půdorysu 10 × 10 cm, jehož
-**výška (až 2 m)** a **barva (červená → zelená)** odpovídají nejlepšímu
-připojení naměřenému v daném místě. **Tři nejrychlejší buňky svítí magentou
-(#E20074).** Po projití celé místnosti získáte prostorovou mapu toho, kde je
-signál silný a kde umírá.
+Jeden AR průvodce instalací FWA (Fixed Wireless Access) routeru, postavený
+podle interního zadání `AR_instalace_FWA_routeru_E2E_flow` (T-Mobile CZ):
+rozpoznání routeru pomocí YOLOv8 (TensorFlow.js), navedení směrem k vysílači
+kompasem, nalezení nejsilnějšího signálu pomocí WebXR heatmapy a navedené
+zapojení SIM karty, kabelů a spuštění s kontrolou LED.
 
-Postaveno na **Next.js (App Router)** + **three.js** nad
-[WebXR Device API](https://developer.mozilla.org/en-US/docs/Web/API/WebXR_Device_API),
-připraveno k nasazení na **Vercel**. Kompletně v češtině, ve vizuálu
-T-Mobile (magenta, písmo TeleNeo).
+Tento repozitář vznikl sloučením dvou dřívějších demo projektů:
 
-## Jak to funguje
+- **signal-columns** (WebXR AR heatmapa pokrytí, three.js) — dnes krok
+  „Najít ideální místo" (`/locate`).
+- **yolov8-tfjs-demo** (rozpoznávání komponent modemu přes vlastní YOLOv8n
+  model, TensorFlow.js) — dnes kroky rozpoznání routeru (`/router`) a
+  navedené zapojení (`/install`).
 
-### Sledování prostoru
+## Flow (app router stránky)
 
-AR relace používá WebXR
-[referenční prostor `local-floor`](https://immersive-web.github.io/webxr/spatial-tracking-explainer.html):
-souřadný systém ukotvený ke světu se šesti stupni volnosti, jehož počátek
-leží na skutečné podlaze v místě startu relace. Sloupce se umisťují v tomto
-prostoru, takže při chůzi zůstávají „přilepené" k místnosti — bez markerů,
-jen díky SLAM trackingu zařízení (ARCore na Androidu, runtime headsetu na
-brýlích). Na podlaze se navíc vykresluje **bílá mřížka po 1 m** zarovnaná
-s buňkami heatmapy, aby bylo mapování v AR čitelné.
+| Krok | Cesta | Co dělá |
+| --- | --- | --- |
+| 0 | `/` | Úvod, načtení `?session=&order=&bts=&router=` z aktivačního odkazu |
+| 1 | `/consent` | Jedno okno „Povolit vše / Ukončit" (kamera, poloha, kompas, data) |
+| 2 | `/router` | Rozpoznání routeru přes kameru (YOLOv8) → tipy → sken štítku → ruční výběr |
+| 3 | `/network` | Kontrola typu připojení a operátora (T-Mobile vs. jiný) |
+| 4 | `/compass` | Směr a vzdálenost k doporučené BTS (GPS + kompas) |
+| 5 | `/locate` | WebXR/simulační heatmapa síly signálu, doporučení místa |
+| 6 | `/confirm` | Potvrzení finálního umístění zákazníkem |
+| 7 | `/install` | Navedené zapojení SIM/kabelů/tlačítka + kontrola LED (živá detekce nebo manuální checklist) |
+| 8 | `/done` | Úspěšné dokončení / troubleshooting a podpora |
+| — | `/fallback` | Zjednodušený režim bez měření, pokud zákazník neudělí souhlasy |
 
-HUD se vykresluje přes WebXR funkci `dom-overlay`, takže živé statistiky
-plavou nad obrazem kamery.
+Data se odesílají na `/api/tmcz/submit` (POST) hned po vyhodnocení
+doporučeného místa a znovu (PATCH) při potvrzení finálního umístění — přesně
+podle bodu „odeslat data hned po vyhodnocení, nečekat na konec instalace" ze
+zadání. Tato route je **zástupný stub** pro preferovanou on-prem/interní
+TMCZ API architekturu; payload (`lib/tmcz.ts`) odpovídá datové tabulce ze
+zadání (session/order id, GPS telefonu a BTS, vzdálenost, operátor/síť,
+naměřená kvalita, hodnocení místa, doporučené a potvrzené místo, časy
+měření/odeslání, zařízení, model routeru, azimut).
 
-### Měření rychlosti
+## Podporované routery
 
-- `GET /api/payload?bytes=N` — serverová funkce Next.js streamující `N`
-  bajtů **nestlačitelných náhodných dat** s hlavičkou
-  `Cache-Control: no-store`, takže měření nezkreslí komprese ani CDN/cache
-  prohlížeče.
-- Klient (`lib/speedtest.ts`) stahuje payloady v nepřetržité smyčce a měří
-  přenos těla odpovědi streamovacím readerem. Doba do prvního bajtu se
-  reportuje jako odezva; z doby přenosu těla se počítá propustnost v Mbit/s.
-- Velikost payloadu se **adaptuje** (32 KB – 4 MB), aby jedno měření trvalo
-  ≈ 0,7 s na jakékoli lince — dost dlouho na smysluplný výsledek, dost
-  krátce na přiřazení k jednomu místu na podlaze.
-- Každé dokončené měření se přiřadí k místu, kde uživatel skutečně byl
-  **uprostřed přenosu** (kruhový buffer poloh, `lib/hud.ts`).
+`lib/routers.ts` drží registr FWA routerů — přidání dalšího modelu je jen
+nová položka v poli, beze změny zbytku flow (viz zadání, bod „Podpora
+zařízení"):
 
-### Zdroj připojení
+- **Xiaomi CB0401v2 5G** — aktuálně namapovaný model, má natrénovaný YOLOv8n
+  detektor komponent (`public/model/`, třídy `lan/modem/off/on/onbutton/
+  orange/pow/powcab/sim/siminside/simopen`) → krok zapojení běží s živou
+  detekcí přes kameru.
+- **Nokia FastMile 5G Gateway 3.2** — ukázka druhého/nového routeru bez
+  natrénovaného detektoru → krok zapojení běží jako manuální, ale stále plně
+  navedený checklist.
 
-HUD zobrazuje typ připojení přes Network Information API: **červeně Wi-Fi**,
-**magentou mobilní síť**. Prohlížeč ale nedokáže zjistit operátora (jestli
-jsou mobilní data T-Mobile, nebo O2) — proto se před startem zobrazí dialog
-s výzvou vypnout Wi-Fi a zkontrolovat, že je zařízení v síti T-Mobile.
+Rozpoznání modelu na `/router` je 3fázový fallback podle zadání: kamera
+(YOLO) → tipy na zlepšení snímání → sken štítku → ruční výběr ze seznamu.
 
-### Sloupce
+## Zjednodušení oproti produkční verzi
 
-`lib/columns.ts` vede jednu buňku na čtvereční metr (`floor(x)`, `floor(z)`
-v prostoru podlahy) a pamatuje si **nejlepší** Mbit/s kdy naměřené uvnitř.
-Výšky a barvy se normalizují vůči **maximu celé relace**:
-
-- nejrychlejší buňka relace → **2 m vysoká**
-- vše ostatní se škáluje lineárně dolů k červené
-- **3 nejrychlejší buňky** dostanou místo gradientu **magentu T-Mobile**
-
-takže mapa dává smysl, ať vaše síť vrcholí na 20, nebo 900 Mbit/s. Sloupce
-mají poloprůhlednou výplň s **bílým drátěným modelem (wireframe)** navrch,
-plynule animují ke své cílové výšce a přenormalizují se, kdykoli padne nové
-maximum relace.
+- **Operátor SIM karty** (T-Mobile vs. O2/Vodafone) nejde z prohlížeče
+  zjistit — `/network` proto typ sítě detekuje (Wi-Fi/mobilní síť) a
+  operátora si nechá potvrdit zákazníkem, přesně jak zadání popisuje jako
+  nutný fallback.
+- **Měření kvality připojení** používá reálný test rychlosti stahování
+  (`/api/payload`, `lib/speedtest.ts`), ne čtení dBm/RSRP — zadání počítá s
+  touto variantou jako fallbackem, pokud platforma neumožní čtení
+  skutečných signálových hodnot.
+- **TMCZ API** je in-memory stub (`/api/tmcz/submit`) — architektura,
+  security a přesný rozsah dat čekají na potvrzení dle kapitoly 3 zadání.
+- **Doporučené místo** se v `/locate` komunikuje live, přímo ve scéně
+  (nejvyšší/magenta sloupec) — přesná souřadnice buňky se dál neuchovává,
+  protože počátek WebXR `local-floor` prostoru se mezi seancemi neresetuje
+  na nic globálně smysluplného.
 
 ## Spuštění
 
@@ -73,16 +79,13 @@ npm install
 npm run dev
 ```
 
-WebXR vyžaduje **zabezpečený kontext**. `http://localhost` se počítá jako
-zabezpečený, ale telefon se k vývojovému stroji jako „localhost" nedostane —
-pro testování AR na zařízení buď:
+WebXR (`/locate` → „Spustit AR měření") vyžaduje zabezpečený kontext a
+zařízení s ARCore (viz sekce níže) — na desktopu použijte „Simulace v
+prohlížeči", která běží se stejným enginem i měřením. Kamerová detekce
+(`/router`, `/install`) potřebuje přístup ke kameře a funguje v libovolném
+moderním prohlížeči.
 
-- nasaďte na Vercel (nejjednodušší — viz níže), nebo
-- tunelujte dev server (`npx untun tunnel http://localhost:3000`, ngrok, …), nebo
-- použijte `adb reverse tcp:3000 tcp:3000` s telefonem Android přes USB a
-  otevřete `http://localhost:3000` v Chromu na telefonu.
-
-### Podpora zařízení
+### Podpora zařízení pro WebXR krok
 
 | Platforma | AR režim |
 | --- | --- |
@@ -91,18 +94,6 @@ pro testování AR na zařízení buď:
 | iOS Safari | ❌ (WebXR AR chybí — použijte simulaci) |
 | Desktopové prohlížeče | Použijte **Simulaci v prohlížeči** |
 
-**Simulace v prohlížeči** používá identický engine i identická skutečná
-měření; virtuální sonda prochází místnost 16 m × 16 m, a protože se rychlost
-desktopové linky v prostoru nemění, moduluje se propustnost hladkým
-syntetickým polem pokrytí, aby bylo chování heatmapy vidět.
-
-## Písmo TeleNeo
-
-Rodina **TeleNeo Office** (Regular, Medium, Bold, ExtraBold) je přibalena
-v `public/fonts/` jako woff2 a načítá se přes `@font-face`
-v `app/globals.css`. TeleNeo je proprietární písmo Deutsche Telekom —
-před nasazením mimo kontext T-Mobile ověřte licenci.
-
 ## Nasazení na Vercel
 
 ```bash
@@ -110,34 +101,44 @@ npm i -g vercel
 vercel
 ```
 
-…nebo repozitář naimportujte na [vercel.com/new](https://vercel.com/new) —
-bez jakékoli konfigurace. Vercel servíruje přes HTTPS (nutné pro WebXR) a
-`/api/payload` + `/api/ping` běží jako serverless funkce.
-
-> Poznámka: měřená propustnost je rychlost mezi vaším zařízením a nejbližším
-> Vercel regionem — což je přesně to, co chcete pro porovnání *relativní*
-> kvality signálu napříč místností.
+…nebo repozitář naimportujte na [vercel.com/new](https://vercel.com/new).
+Vercel servíruje přes HTTPS (nutné pro WebXR i pro kameru) a všechny
+`/api/*` routy běží jako serverless funkce.
 
 ## Struktura projektu
 
 ```
 app/
-  page.tsx            úvodní stránka + HUD + dialog před startem
-  layout.tsx          metadata / viewport (cs)
-  globals.css         veškeré styly (landing + HUD + modal, TeleNeo)
-  api/payload/route.ts  nestlačitelný náhodný payload (cíl měření)
-  api/ping/route.ts     miniaturní odpověď pro odezvu
+  page.tsx                 landing + načtení instalačního kontextu
+  consent/                 souhlasy
+  router/                  rozpoznání routeru (YOLOv8 + fallback chain)
+  network/                 kontrola připojení / operátora
+  compass/                  směr a vzdálenost k BTS
+  locate/                   WebXR/sim heatmapa + doporučení místa
+  confirm/                  potvrzení finálního umístění
+  install/                  navedené zapojení (živá detekce nebo manuální)
+  done/                     dokončení / troubleshooting
+  fallback/                 režim bez souhlasů/měření
+  api/payload, api/ping     nestlačitelný payload + ping pro speedtest
+  api/tmcz/submit           stub pro odeslání dat do TMCZ
 lib/
-  ar.ts               immersive-ar relace (local-floor, dom-overlay, bílá mřížka)
-  sim.ts              desktopová simulace s bloudící virtuální sondou
-  columns.ts          pole sloupců 10 × 10 cm: mřížka, normalizace, barvy, top-3 magenta
-  speedtest.ts        adaptivní nepřetržité měření stahování
-  network.ts          typ připojení (Wi-Fi / mobilní síť) přes Network Information API
-  hud.ts              typ stavu HUD + kruhový buffer poloh
+  ar.ts, sim.ts, columns.ts, speedtest.ts, network.ts, hud.ts   WebXR heatmapa (beze změny)
+  yolo/                      YOLOv8 model loader, detekční smyčka, dekódování výstupu
+  routers.ts                 registr podporovaných FWA routerů + kroky instalace
+  session-store.ts           cross-step stav instalační session (zustand, sessionStorage)
+  tmcz.ts                    payload a klient pro odeslání dat do TMCZ
+  geo.ts, flow.ts             geo výpočty, pořadí kroků průvodce
+components/
+  StepShell.tsx               sdílená obálka kroku (progress dots, header/footer)
+  InstallTourLive.tsx          živá kamerová detekce pro krok zapojení
+  InstallTourManual.tsx        manuální checklist pro routery bez detektoru
+public/model/                 YOLOv8n TensorFlow.js model + metadata
+public/router-xiaomi/         fotky pro Xiaomi CB0401v2 5G
+public/router-nokia/          ilustrační ikona pro Nokia FastMile 5G Gateway 3.2
 ```
 
-## Odkazy
+## TeleNeo font
 
-- [WebXR spatial tracking explainer](https://immersive-web.github.io/webxr/spatial-tracking-explainer.html)
-- [immersiveweb.dev](https://immersiveweb.dev/)
-- [MDN — WebXR spatial tracking](https://developer.mozilla.org/en-US/docs/Web/API/WebXR_Device_API/Spatial_tracking)
+Rodina **TeleNeo Office** (Regular, Medium, Bold, ExtraBold) je přibalena
+v `public/fonts/` jako woff2. TeleNeo je proprietární písmo Deutsche
+Telekom — před nasazením mimo kontext T-Mobile ověřte licenci.

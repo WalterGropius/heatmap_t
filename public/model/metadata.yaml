@@ -1,0 +1,30 @@
+description: Ultralytics best model trained on custom_dataset/data.yaml
+author: Ultralytics
+date: '2025-04-23T06:53:42.718856'
+version: 8.3.114
+license: AGPL-3.0 License (https://ultralytics.com/license)
+docs: https://docs.ultralytics.com
+stride: 32
+task: detect
+batch: 1
+imgsz:
+- 640
+- 640
+names:
+  0: lan
+  1: modem
+  2: 'off'
+  3: 'on'
+  4: onbutton
+  5: orange
+  6: pow
+  7: powcab
+  8: sim
+  9: siminside
+  10: simopen
+args:
+  batch: 1
+  half: false
+  int8: false
+  nms: false
+channels: 3

@@ -465,3 +465,464 @@ body {
   color: var(--gray);
   margin-top: 7px;
 }
+
+/* ================================================================
+   Installer flow — shared wizard shell used by every step page
+   ================================================================ */
+
+.step-page {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+.step-progress {
+  display: flex;
+  gap: 6px;
+  padding: calc(12px + env(safe-area-inset-top)) 20px 4px;
+}
+
+.step-progress .seg {
+  flex: 1;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.step-progress .seg.done,
+.step-progress .seg.current {
+  background: var(--magenta);
+}
+
+.step-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 20px 24px;
+  max-width: 640px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.step-eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--magenta);
+  margin: 0 0 8px;
+}
+
+.step-body h1 {
+  font-size: clamp(22px, 5vw, 28px);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  margin: 0 0 10px;
+  line-height: 1.15;
+}
+
+.step-body p.lead {
+  color: var(--gray);
+  font-size: 15px;
+  line-height: 1.6;
+  margin: 0 0 20px;
+}
+
+.step-footer {
+  position: sticky;
+  bottom: 0;
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+  padding: 14px 20px calc(14px + env(safe-area-inset-bottom));
+  display: flex;
+  gap: 10px;
+  max-width: 640px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.step-footer .btn {
+  flex: 1;
+  padding: 14px 10px;
+  font-size: 15px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.step-footer .btn-back {
+  flex: 0 0 110px;
+}
+
+/* status / warning banners */
+
+.banner {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  border-radius: 12px;
+  padding: 14px 16px;
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0 0 16px;
+}
+
+.banner.info {
+  background: rgba(226, 0, 116, 0.06);
+  color: var(--ink);
+}
+
+.banner.success {
+  background: rgba(34, 197, 94, 0.1);
+  color: #15803d;
+}
+
+.banner.warning {
+  background: rgba(245, 158, 11, 0.12);
+  color: #92400e;
+}
+
+.banner.error {
+  background: rgba(239, 68, 68, 0.1);
+  color: #b91c1c;
+}
+
+.banner .dot-spin {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  border-radius: 50%;
+  border: 2.5px solid rgba(226, 0, 116, 0.25);
+  border-top-color: var(--magenta);
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* consent screen */
+
+.consent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 0 20px;
+}
+
+.consent-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.consent-item .glyph {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: rgba(226, 0, 116, 0.1);
+  color: var(--magenta);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.consent-item .copy b {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.consent-item .copy span {
+  font-size: 13px;
+  color: var(--gray);
+  line-height: 1.5;
+}
+
+/* router select / recognition */
+
+.router-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin: 0 0 16px;
+}
+
+.router-card {
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+  text-align: center;
+  cursor: pointer;
+  background: #fff;
+  transition: border-color 0.12s ease, transform 0.12s ease;
+}
+
+.router-card:active {
+  transform: scale(0.98);
+}
+
+.router-card.selected {
+  border-color: var(--magenta);
+  box-shadow: 0 0 0 3px rgba(226, 0, 116, 0.12);
+}
+
+.router-card img {
+  width: 100%;
+  max-width: 120px;
+  height: 90px;
+  object-fit: contain;
+  margin: 0 auto 10px;
+  display: block;
+}
+
+.router-card b {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.router-card span {
+  font-size: 12px;
+  color: var(--gray);
+}
+
+.camera-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #0d0d0d;
+  margin: 0 0 16px;
+}
+
+.camera-stage video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.camera-stage .frozen-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.camera-highlight {
+  position: absolute;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  z-index: 3;
+}
+
+.camera-highlight img {
+  height: 100%;
+  width: auto;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
+}
+
+.camera-overlay-chip {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  z-index: 4;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 999px;
+  backdrop-filter: blur(6px);
+}
+
+.camera-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+  text-align: center;
+  padding: 20px;
+}
+
+/* generic checklist for manual (no-detection) tour steps */
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+}
+
+.check-row.checked {
+  border-color: #22c55e;
+  background: rgba(34, 197, 94, 0.06);
+}
+
+.check-row .box {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  border: 2px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 800;
+}
+
+.check-row.checked .box {
+  background: #22c55e;
+  border-color: #22c55e;
+}
+
+/* compass */
+
+.compass-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  margin: 10px 0 20px;
+}
+
+.compass-ring {
+  width: 220px;
+  height: 220px;
+  max-width: 70vw;
+  max-height: 70vw;
+  border-radius: 50%;
+  background: #f5f5f5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: box-shadow 0.2s ease;
+}
+
+.compass-ring.on-target {
+  box-shadow: 0 0 0 6px rgba(34, 197, 94, 0.35);
+  background: #f2fdf5;
+}
+
+.compass-arrow {
+  transition: transform 0.1s ease-out;
+  color: var(--magenta);
+}
+
+.compass-arrow.on-target {
+  color: #22c55e;
+}
+
+/* list-select cards, generic */
+
+.option-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 0 16px;
+}
+
+.option-card {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  background: #fff;
+}
+
+.option-card.selected {
+  border-color: var(--magenta);
+  box-shadow: 0 0 0 3px rgba(226, 0, 116, 0.12);
+}
+
+.option-card b {
+  display: block;
+  font-size: 14px;
+}
+
+.option-card span {
+  font-size: 12px;
+  color: var(--gray);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: #ececec;
+  color: var(--gray);
+}
+
+.chip.magenta {
+  background: rgba(226, 0, 116, 0.1);
+  color: var(--magenta);
+}
+
+.chip.green {
+  background: rgba(34, 197, 94, 0.12);
+  color: #15803d;
+}
+
+/* recommendation banner shown on the locate step */
+
+.recommend-card {
+  position: fixed;
+  left: 14px;
+  right: 14px;
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  z-index: 20;
+  background: var(--panel-light);
+  border: 1px solid var(--panel-border);
+  border-radius: 16px;
+  padding: 16px;
+  backdrop-filter: blur(10px);
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.recommend-card h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+
+.recommend-card p {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--gray);
+  line-height: 1.5;
+}
+
+.recommend-card .row {
+  display: flex;
+  gap: 10px;
+}
