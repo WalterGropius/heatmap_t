@@ -2,15 +2,17 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Mapa signálu — AR měření pokrytí",
+  title: "AR instalace FWA routeru — T-Mobile",
   description:
-    "WebXR demo: projděte místnost a živé měření rychlosti stahování vykreslí na podlaze sloupce po 1 m² — výška a barva ukazují nejlepší naměřené připojení v každém místě.",
+    "AR průvodce instalací FWA routeru: rozpoznání routeru přes YOLOv8 (TensorFlow.js), nalezení nejsilnějšího signálu pomocí WebXR heatmapy a navedené zapojení SIM karty, kabelů a spuštění.",
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
   themeColor: "#e20074",
 };
 
