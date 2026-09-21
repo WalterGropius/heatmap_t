@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { ColumnField, MAGENTA } from "./columns";
 import { SpeedTester, type SpeedSample } from "./speedtest";
-import { PositionTrail, type HudState } from "./hud";
+import { HudEmitter, PositionTrail, EMPTY_HUD, type HudState } from "./hud";
 
 export interface SimHandle {
   end: () => void;
@@ -41,6 +41,7 @@ export function startSim(opts: {
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.target.set(0, 0.8, 0);
   controls.enableDamping = true;
+  controls.enablePan = false;
   controls.maxPolarAngle = Math.PI / 2 - 0.05;
   controls.minDistance = 4;
   controls.maxDistance = 32;
@@ -92,13 +93,19 @@ export function startSim(opts: {
   };
 
   const trail = new PositionTrail();
-  const hud: HudState = {
-    mbps: 0,
-    latencyMs: 0,
-    bestMbps: 0,
-    cells: 0,
-    samples: 0,
-    tracking: true,
+  const hud: HudState = { ...EMPTY_HUD, tracking: true };
+  const emitter = new HudEmitter(opts.onHud);
+
+  /** Recompute the "where the phone is standing" readouts. */
+  const refreshGuidance = () => {
+    const at = trail.latest();
+    const center = field.bestCellCenter();
+    if (!at) return;
+    const here = field.cellAt(at.x, at.z);
+    hud.hereMbps = here?.mbps ?? 0;
+    hud.hereScore = field.scoreFor(hud.hereMbps);
+    hud.distanceToBestM = center ? Math.hypot(center.x - at.x, center.z - at.z) : null;
+    hud.onBestSpot = field.bestCellKey !== null && field.keyAt(at.x, at.z) === field.bestCellKey;
   };
 
   const tester = new SpeedTester((s: SpeedSample) => {
@@ -111,7 +118,8 @@ export function startSim(opts: {
     hud.bestMbps = field.sessionBestMbps;
     hud.cells = field.cellCount;
     hud.samples += 1;
-    opts.onHud({ ...hud });
+    refreshGuidance();
+    emitter.emit(hud, true);
   });
 
   // waypoint wandering
@@ -133,11 +141,17 @@ export function startSim(opts: {
   const onResize = () => {
     const w = opts.container.clientWidth;
     const h = opts.container.clientHeight;
+    if (!w || !h) return;
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
     renderer.setSize(w, h);
   };
   window.addEventListener("resize", onResize);
+  // the stage also changes size when the surrounding chrome reflows (mobile
+  // browser bars, the HUD card growing), which no window resize reports
+  const resizeObserver =
+    typeof ResizeObserver !== "undefined" ? new ResizeObserver(onResize) : null;
+  resizeObserver?.observe(opts.container);
 
   const tick = () => {
     if (!alive) return;
@@ -152,6 +166,8 @@ export function startSim(opts: {
     trail.push(performance.now(), pos.x, pos.y);
 
     field.update(dt);
+    refreshGuidance();
+    emitter.emit(hud);
     controls.update();
     renderer.render(scene, camera);
   };
@@ -164,6 +180,7 @@ export function startSim(opts: {
     cancelAnimationFrame(raf);
     tester.stop();
     window.removeEventListener("resize", onResize);
+    resizeObserver?.disconnect();
     field.dispose();
     controls.dispose();
     renderer.dispose();

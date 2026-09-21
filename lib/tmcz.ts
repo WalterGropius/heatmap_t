@@ -46,7 +46,7 @@ function deviceInfo() {
 
 /** Caps the heatmap sample set sent over the wire to the most informative cells. */
 function topCells(cells: CellStats[], max = 200): CellStats[] {
-  return [...cells].sort((a, b) => b.bestMbps - a.bestMbps).slice(0, max);
+  return [...cells].sort((a, b) => b.mbps - a.mbps).slice(0, max);
 }
 
 export function buildTmczPayload(session: InstallSession): TmczPayload {
