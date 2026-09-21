@@ -6,6 +6,10 @@ import { useCameraDetection } from "@/lib/yolo/useCameraDetection";
 import type { RouterModel, StepHighlight } from "@/lib/routers";
 
 const CONF = 0.7;
+/** Height of the rounded callout plate drawn over the camera feed, in CSS px. */
+const PLATE_H = 100;
+/** Keep the plate this far from the edges of the camera stage. */
+const PLATE_MARGIN = 8;
 
 function classConf(detections: { class: string; confidence: number }[], id: string, min = CONF) {
   return detections.some((d) => d.class.toLowerCase() === id.toLowerCase() && d.confidence >= min);
@@ -30,8 +34,14 @@ export default function InstallTourLive({
   const [powcabDetected, setPowcabDetected] = useState(false);
   const [siminsideDetected, setSiminsideDetected] = useState(false);
   const [onCount, setOnCount] = useState(0);
-  const [scale, setScale] = useState({ x: 1, y: 1, w: 0, h: 0 });
+  // Mapping from video pixels to stage pixels. The <video> is rendered with
+  // object-fit: cover, so it is uniformly scaled and centre-cropped — a
+  // per-axis scale would drift the callout off the connector whenever the
+  // camera's aspect ratio differs from the stage's.
+  const [view, setView] = useState({ s: 1, ox: 0, oy: 0, w: 0, h: 0 });
+  const [plateW, setPlateW] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const plateRef = useRef<HTMLDivElement>(null);
 
   const step = router.steps[stepIdx];
   const isLast = stepIdx === router.steps.length - 1;
@@ -72,20 +82,30 @@ export default function InstallTourLive({
     if (!video || !container || !video.videoWidth) return;
     const w = container.clientWidth;
     const h = container.clientHeight;
-    setScale({ x: w / video.videoWidth, y: h / video.videoHeight, w, h });
+    const s = Math.max(w / video.videoWidth, h / video.videoHeight);
+    setView({ s, ox: (w - video.videoWidth * s) / 2, oy: (h - video.videoHeight * s) / 2, w, h });
   }, [videoRef]);
+
+  const measurePlate = useCallback(() => {
+    setPlateW(plateRef.current?.offsetWidth ?? 0);
+  }, []);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
+    const onResize = () => {
+      updateScale();
+      // the plate can hit its max-width at a narrower stage, changing its width
+      measurePlate();
+    };
     video.addEventListener("loadedmetadata", updateScale);
-    window.addEventListener("resize", updateScale);
+    window.addEventListener("resize", onResize);
     updateScale();
     return () => {
       video.removeEventListener("loadedmetadata", updateScale);
-      window.removeEventListener("resize", updateScale);
+      window.removeEventListener("resize", onResize);
     };
-  }, [videoRef, updateScale, isDetecting]);
+  }, [videoRef, updateScale, measurePlate, isDetecting]);
 
   const isNextEnabled = () => {
     if (step.specialLogic === "requirePowcab") return powcabDetected;
@@ -116,6 +136,23 @@ export default function InstallTourLive({
     return { detection: top, highlight };
   };
   const active = highestForStep();
+
+  /** Anchor the callout above the detection, kept fully inside the stage so
+   *  its rounded corners never get clipped by the camera frame. */
+  const platePosition = ([bx, by, bw]: [number, number, number, number]) => {
+    const cx = (bx + bw / 2) * view.s + view.ox;
+    const cy = by * view.s + view.oy;
+    const half = plateW / 2;
+    const left =
+      view.w > 0 && plateW > 0
+        ? Math.min(Math.max(cx, half + PLATE_MARGIN), Math.max(half + PLATE_MARGIN, view.w - half - PLATE_MARGIN))
+        : cx;
+    const top =
+      view.h > 0
+        ? Math.min(Math.max(cy - PLATE_H / 2, PLATE_MARGIN), Math.max(PLATE_MARGIN, view.h - PLATE_H - PLATE_MARGIN))
+        : Math.max(PLATE_MARGIN, cy - PLATE_H / 2);
+    return { left: `${left}px`, top: `${top}px` };
+  };
 
   const next = () => {
     if (isLast) {
@@ -154,15 +191,8 @@ export default function InstallTourLive({
           <video ref={videoRef} muted playsInline />
           {!isDetecting && model && <div className="camera-placeholder">Zapínám kameru…</div>}
           {active?.highlight.image && (
-            <div
-              className="camera-highlight"
-              style={{
-                left: `${active.detection.bbox[0] * scale.x}px`,
-                top: `${Math.max(0, active.detection.bbox[1] * scale.y - 50)}px`,
-                height: 100,
-              }}
-            >
-              <img src={active.highlight.image} alt={active.detection.class} />
+            <div ref={plateRef} className="camera-highlight" style={platePosition(active.detection.bbox)}>
+              <img src={active.highlight.image} alt={step.title} onLoad={measurePlate} />
             </div>
           )}
         </div>

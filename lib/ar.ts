@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { ColumnField } from "./columns";
 import { SpeedTester, type SpeedSample } from "./speedtest";
-import { PositionTrail, type HudState } from "./hud";
+import { HudEmitter, PositionTrail, EMPTY_HUD, type HudState } from "./hud";
 
 export interface ARHandle {
   end: () => void;
@@ -53,13 +53,19 @@ export async function startAR(opts: {
   scene.add(field.group);
 
   const trail = new PositionTrail();
-  const hud: HudState = {
-    mbps: 0,
-    latencyMs: 0,
-    bestMbps: 0,
-    cells: 0,
-    samples: 0,
-    tracking: false,
+  const hud: HudState = { ...EMPTY_HUD };
+  const emitter = new HudEmitter(opts.onHud);
+
+  /** Recompute the "where you are standing" readouts from the latest pose. */
+  const refreshGuidance = () => {
+    const at = trail.latest();
+    const center = field.bestCellCenter();
+    if (!at) return;
+    const here = field.cellAt(at.x, at.z);
+    hud.hereMbps = here?.mbps ?? 0;
+    hud.hereScore = field.scoreFor(hud.hereMbps);
+    hud.distanceToBestM = center ? Math.hypot(center.x - at.x, center.z - at.z) : null;
+    hud.onBestSpot = field.bestCellKey !== null && field.keyAt(at.x, at.z) === field.bestCellKey;
   };
 
   const tester = new SpeedTester((s: SpeedSample) => {
@@ -72,7 +78,8 @@ export async function startAR(opts: {
     hud.bestMbps = field.sessionBestMbps;
     hud.cells = field.cellCount;
     hud.samples += 1;
-    opts.onHud({ ...hud });
+    refreshGuidance();
+    emitter.emit(hud, true);
   });
 
   const clock = new THREE.Clock();
@@ -93,10 +100,8 @@ export async function startAR(opts: {
         }
       }
     }
-    if (tracking !== hud.tracking) {
-      hud.tracking = tracking;
-      opts.onHud({ ...hud });
-    }
+    const trackingChanged = tracking !== hud.tracking;
+    hud.tracking = tracking;
 
     // keep the trail alive even without a fresh XRFrame pose (fallback)
     if (!tracking) {
@@ -105,6 +110,8 @@ export async function startAR(opts: {
     }
 
     field.update(dt);
+    refreshGuidance();
+    emitter.emit(hud, trackingChanged);
     renderer.render(scene, camera);
   });
 
