@@ -2,20 +2,22 @@
 
 import { useRouter } from "next/navigation";
 import StepShell from "@/components/StepShell";
-import { useSessionStore } from "@/lib/session-store";
+import Banner from "@/components/Banner";
+import { SignalBars } from "@/components/Icon";
+import { useSessionStore, type PlaceRating } from "@/lib/session-store";
 import { confirmPlacement } from "@/lib/tmcz";
 
-const RATING_LABEL: Record<string, string> = {
-  nevhodne: "Slabý signál",
-  pouzitelne: "Použitelné místo",
-  doporucene: "Doporučené místo",
+const RATING: Record<PlaceRating, { label: string; bars: 1 | 3 | 4; note: string }> = {
+  nevhodne: {
+    label: "Slabý signál",
+    bars: 1,
+    note: "Nemusí jít o chybu — v některých bytech je to nejlepší dostupný stav. Můžete ale zkusit najít lepší místo.",
+  },
+  pouzitelne: { label: "Použitelné místo", bars: 3, note: "Router tu bude fungovat spolehlivě." },
+  doporucene: { label: "Doporučené místo", bars: 4, note: "Tady má router nejlepší podmínky." },
 };
 
-const RATING_BANNER: Record<string, string> = {
-  nevhodne: "warning",
-  pouzitelne: "info",
-  doporucene: "success",
-};
+const nf1 = new Intl.NumberFormat("cs-CZ", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
 export default function ConfirmPlacePage() {
   const nav = useRouter();
@@ -24,6 +26,7 @@ export default function ConfirmPlacePage() {
   const placeRating = useSessionStore((s) => s.placeRating);
   const bestMbps = useSessionStore((s) => s.bestMbps);
   const patch = useSessionStore((s) => s.patch);
+  const rating = RATING[placeRating ?? "pouzitelne"];
 
   const accept = () => {
     const confirmedAt = Date.now();
@@ -53,28 +56,29 @@ export default function ConfirmPlacePage() {
         </>
       }
     >
-      <p className="step-eyebrow">Krok 5 · Potvrzení místa</p>
+      <p className="step-eyebrow">Potvrzení místa</p>
       <h1>Umístit router právě sem?</h1>
 
       {fallbackNoMeasurement ? (
-        <div className="banner info">
-          <span aria-hidden>🧭</span>
-          <span>Umístění bylo doporučeno podle směru k vysílači, bez měření síly signálu.</span>
-        </div>
+        <Banner tone="info" icon="compass">
+          Umístění bylo doporučeno podle směru k vysílači, bez měření síly signálu.
+        </Banner>
       ) : (
-        <div className={`banner ${RATING_BANNER[placeRating ?? "pouzitelne"]}`}>
-          <span aria-hidden>📶</span>
-          <span>
-            {RATING_LABEL[placeRating ?? "pouzitelne"]}
-            {bestMbps ? ` — naměřeno až ${bestMbps.toFixed(1)} Mbit/s.` : "."}
-          </span>
+        <div className="place-card">
+          <SignalBars level={rating.bars} size={48} />
+          <div>
+            <b>{rating.label}</b>
+            <span>
+              {bestMbps ? `Naměřeno až ${nf1.format(bestMbps)} Mbit/s. ` : ""}
+              {rating.note}
+            </span>
+          </div>
         </div>
       )}
 
       <p className="lead">
         Pokud tohle místo vyhovuje, pokračujeme k zapojení SIM karty, kabelů a
-        zapnutí routeru. Pokud chcete zkusit jiné místo, vrátíme vás k
-        měření.
+        zapnutí routeru. Pokud chcete zkusit jiné místo, vrátíme vás k měření.
       </p>
     </StepShell>
   );

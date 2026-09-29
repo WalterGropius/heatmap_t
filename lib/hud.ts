@@ -1,3 +1,6 @@
+/** The floor guide arrow shows — and the HUD mentions it — while the best spot is at least this far away, in meters. */
+export const GUIDE_MIN_DISTANCE = 1.2;
+
 export interface HudState {
   /** Most recent throughput sample in Mbit/s */
   mbps: number;

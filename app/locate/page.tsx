@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import StepShell from "@/components/StepShell";
-import { EMPTY_HUD, type HudState } from "@/lib/hud";
+import Banner from "@/components/Banner";
+import BrandMark from "@/components/BrandMark";
+import Icon, { SignalBars, type IconName } from "@/components/Icon";
+import { ArIconButton } from "@/components/ArCamera";
+import { EMPTY_HUD, GUIDE_MIN_DISTANCE, type HudState } from "@/lib/hud";
 import { useSessionStore, type PlaceRating } from "@/lib/session-store";
 import { buildTmczPayload, submitInstallData } from "@/lib/tmcz";
 
@@ -87,34 +91,46 @@ function NoMeasureFlow({ onConfirm }: { onConfirm: () => void }) {
         </>
       }
     >
-      <p className="step-eyebrow">Krok 4 · Ideální místo</p>
+      <p className="step-eyebrow">Ideální místo</p>
       <h1>Doporučené umístění</h1>
-      <div className="banner info">
-        <span aria-hidden>🧭</span>
-        <span>
-          Bez měření síly signálu doporučujeme místo podle směru z předchozího
-          kroku — nejčastěji u okna nebo na parapetu směrem k vysílači.
-        </span>
-      </div>
+      <Banner tone="info" icon="compass">
+        Bez měření síly signálu doporučujeme místo podle směru z předchozího
+        kroku — nejčastěji u okna nebo na parapetu směrem k vysílači.
+      </Banner>
       <p className="lead">Až budete na místě, které vám vyhovuje, potvrďte to tlačítkem níže.</p>
     </StepShell>
   );
 }
 
 /** The one line of copy that tells the customer what to do right now. */
-function guidance(hud: HudState, mode: Mode): { text: string; tone: "ok" | "wait" | "go" } {
-  if (hud.samples === 0) return { text: "Spouštím měření rychlosti…", tone: "wait" };
+function guidance(hud: HudState, mode: Mode): { text: string; tone: "ok" | "wait" | "go"; icon: IconName } {
+  if (hud.samples === 0) return { text: "Spouštím měření signálu…", tone: "wait", icon: "signal" };
   if (mode === "ar" && !hud.tracking)
-    return { text: "Hledám polohu — pomalu pohybujte telefonem.", tone: "wait" };
-  if (hud.onBestSpot) return { text: "Stojíte na nejlepším naměřeném místě.", tone: "ok" };
-  if (hud.distanceToBestM !== null && hud.distanceToBestM >= 1)
+    return { text: "Hledám polohu — pomalu pohybujte telefonem.", tone: "wait", icon: "scan" };
+  if (hud.onBestSpot) return { text: "Stojíte na nejsilnějším místě — sem s routerem!", tone: "ok", icon: "checkCircle" };
+  // same threshold as the floor arrow, so the text never promises an arrow that is not drawn
+  if (hud.distanceToBestM !== null && hud.distanceToBestM >= GUIDE_MIN_DISTANCE)
     return {
-      text: `Nejlepší místo je ${nf1.format(hud.distanceToBestM)} m odsud — hledejte magenta kruh na podlaze.`,
+      text: `Nejsilnější místo je ${nf1.format(hud.distanceToBestM)} m odsud — jděte za šipkou k magenta špendlíku.`,
       tone: "go",
+      icon: "navigate",
     };
   if (hud.cells < SUGGESTED_CELLS)
-    return { text: "Projděte pomalu místnost, ať je co porovnávat.", tone: "go" };
-  return { text: "Pokračujte v hledání silnějšího místa.", tone: "go" };
+    return { text: "Projděte pomalu místnost, ať je co porovnávat.", tone: "go", icon: "walk" };
+  return { text: "Pokračujte v hledání silnějšího místa.", tone: "go", icon: "walk" };
+}
+
+/**
+ * The spot the customer is standing on, as phone-style signal bars and a
+ * word. Relative to the best spot measured so far — the rating chip next to
+ * it carries the absolute verdict on the best spot.
+ */
+function hereLevel(hud: HudState): { bars: 0 | 1 | 2 | 3 | 4; word: string } {
+  if (hud.samples === 0 || hud.hereMbps <= 0) return { bars: 0, word: "Měřím…" };
+  if (hud.onBestSpot || hud.hereScore >= 0.9) return { bars: 4, word: "Nejsilnější místo" };
+  if (hud.hereScore >= 0.65) return { bars: 3, word: "Silný signál" };
+  if (hud.hereScore >= 0.35) return { bars: 2, word: "Střední signál" };
+  return { bars: 1, word: "Slabý signál" };
 }
 
 function MeasureFlow({ onConfirm }: { onConfirm: (hud: HudState) => void }) {
@@ -174,7 +190,12 @@ function MeasureFlow({ onConfirm }: { onConfirm: (hud: HudState) => void }) {
       await new Promise((r) => requestAnimationFrame(r));
       const container = stageRef.current;
       if (!container) throw new Error("Scéna není připravena");
-      handleRef.current = run({ container, onHud: setHud, onEnd: reset });
+      handleRef.current = run({
+        container,
+        onHud: setHud,
+        onEnd: reset,
+        occluder: () => overlayRef.current?.querySelector(".scan-card")?.getBoundingClientRect(),
+      });
     } catch (e) {
       reset();
       setError(e instanceof Error ? `Simulaci se nepodařilo spustit: ${e.message}` : "Simulaci se nepodařilo spustit.");
@@ -209,40 +230,38 @@ function MeasureFlow({ onConfirm }: { onConfirm: (hud: HudState) => void }) {
           </button>
         }
       >
-        <p className="step-eyebrow">Krok 4 · Ideální místo</p>
+        <p className="step-eyebrow">Ideální místo</p>
         <h1>Najdeme nejsilnější signál</h1>
         <p className="lead">
-          Měříme skutečnou rychlost stahování a zakreslujeme ji na podlahu
-          místnosti. Čím vyšší sloupec, tím rychlejší místo.
+          Měříme skutečnou rychlost připojení a malujeme ji na podlahu
+          místnosti. Čím sytější magenta, tím silnější signál.
         </p>
+
+        <div className="heat-legend" aria-hidden>
+          <span>slabší</span>
+          <span className="ramp" />
+          <span>silnější</span>
+        </div>
 
         <ol className="howto">
           <li>
-            <b>Projděte pomalu místnost</b> — každý metr čtvereční dostane vlastní sloupec.
+            <b>Projděte pomalu místnost</b> — každý metr čtvereční se obarví podle síly signálu.
           </li>
           <li>
-            <b>Sledujte magenta kruh</b> na podlaze — označuje dosud nejrychlejší místo.
+            <b>Jděte za šipkou</b> k magenta špendlíku — ukazuje dosud nejsilnější místo.
           </li>
           <li>
             <b>Postavte se na něj</b> a potvrďte ho jako umístění routeru.
           </li>
         </ol>
 
-        {error && (
-          <div className="banner error">
-            <span aria-hidden>⚠️</span>
-            <span>{error}</span>
-          </div>
-        )}
+        {error && <Banner tone="error">{error}</Banner>}
 
         {arSupported === false && (
-          <div className="banner info">
-            <span aria-hidden>ℹ️</span>
-            <span>
-              Toto zařízení nepodporuje AR (WebXR). Spusťte simulaci v prohlížeči —
-              měří stejně, jen místnost prochází virtuální telefon.
-            </span>
-          </div>
+          <Banner tone="info">
+            Toto zařízení nepodporuje AR (WebXR). Spusťte simulaci v prohlížeči —
+            měří stejně, jen místností prochází virtuální telefon.
+          </Banner>
         )}
 
         <div className="cta-row">
@@ -270,6 +289,7 @@ function MeasureFlow({ onConfirm }: { onConfirm: (hud: HudState) => void }) {
   const rating = rate(hud.bestMbps);
   const guide = guidance(hud, mode);
   const herePct = Math.round(Math.min(1, Math.max(0, hud.hereScore)) * 100);
+  const level = hereLevel(hud);
 
   return (
     <>
@@ -281,80 +301,67 @@ function MeasureFlow({ onConfirm }: { onConfirm: (hud: HudState) => void }) {
       */}
       <div ref={overlayRef} className="hud">
         <div className="hud-top">
-          <div className="hud-panel" role="status" aria-live="polite">
-            <div className="hud-mode">{mode === "ar" ? "AR měření" : "Simulace"}</div>
-            <div className="hud-speed">
-              {fmtSpeed(hud.mbps)}
-              <small>Mbit/s</small>
-            </div>
-            <div className="hud-substats">
-              <span>
-                <b>{fmtSpeed(hud.bestMbps)}</b>
-                maximum
-              </span>
-              <span>
-                <b>{hud.cells}</b>
-                buněk
-              </span>
-              <span>
-                <b>{hud.samples}</b>
-                měření
-              </span>
-            </div>
-            <div className="hud-meta">
-              <span className="hud-track">
-                <span className={hud.tracking ? "dot" : "dot lost"} />
-                {hud.tracking ? "sledování" : "hledám polohu…"}
-              </span>
-            </div>
+          <div className="hud-pill" role="status" aria-live="polite">
+            <BrandMark size={32} />
+            <span className={hud.tracking ? "live" : "live lost"} aria-hidden />
+            <span>{!hud.tracking ? "Hledám polohu…" : mode === "ar" ? "Měřím signál" : "Simulace"}</span>
+            {hud.mbps > 0 && <small>{fmtSpeed(hud.mbps)} Mbit/s</small>}
           </div>
-          <button className="btn-end" onClick={cancelMeasuring}>
-            Zrušit
-          </button>
+          <ArIconButton icon="close" label="Zrušit měření" onClick={cancelMeasuring} />
         </div>
 
         <div className="hud-bottom">
           <div className="scan-card">
-            <div className="scan-head">
-              <span className={`rating-chip ${rating}`}>
-                {hud.samples > 0 ? RATING_COPY[rating] : "Sbírám první měření…"}
-              </span>
-              {hud.bestMbps > 0 && (
-                <span className="scan-pct">
-                  zde <b>{herePct} %</b> nejlepšího
+            <div className="signal-row">
+              <SignalBars level={level.bars} size={42} />
+              <div className="signal-text">
+                <span className="signal-word">{level.word}</span>
+                <span className="signal-sub">
+                  {hud.hereMbps > 0 ? `Tady ${fmtSpeed(hud.hereMbps)} Mbit/s` : "Tady zatím neměřeno"}
                 </span>
-              )}
+              </div>
             </div>
 
-            {/* The speed gradient doubles as the legend and as the meter: the
-                needle sits where the current cell falls between slow and the
-                fastest cell measured so far. */}
+            {/* The ramp doubles as the legend (same colors as the floor) and
+                as the meter: the needle sits where the spot you stand on
+                falls between weak and the strongest spot measured so far. */}
             <div
               className="quality-bar"
               role="meter"
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={herePct}
-              aria-label="Kvalita aktuálního místa vůči nejlepšímu naměřenému"
+              aria-label="Síla signálu tady vůči nejsilnějšímu místu"
             >
               <div className="quality-track" />
-              {hud.bestMbps > 0 && (
-                // inset by the needle's own width so it stays on the track at 0 % and 100 %
-                <div
-                  className="quality-needle"
-                  style={{ left: `calc(2px + (100% - 4px) * ${herePct / 100})` }}
-                />
+              {hud.hereMbps > 0 && (
+                // inset by the needle's radius so it stays on the track at 0 % and 100 %
+                <div className="quality-needle" style={{ left: `calc(9px + (100% - 18px) * ${herePct / 100})` }} />
               )}
             </div>
             <div className="quality-scale">
-              <span>pomalé</span>
+              <span>slabší</span>
               <span className="quality-legend">
-                <i className="swatch" aria-hidden />3 nejrychlejší buňky
+                <Icon name="pin" size={14} strokeWidth={2.5} />
+                nejsilnější místo
               </span>
-              <span>nejrychlejší</span>
+              <span>silnější</span>
             </div>
 
-            <p className={`scan-guide ${guide.tone}`}>{guide.text}</p>
+            <p className={`scan-guide ${guide.tone}`}>
+              <Icon name={guide.icon} size={20} />
+              <span>{guide.text}</span>
+            </p>
+
+            {hud.bestMbps > 0 && (
+              <div className="best-line">
+                <Icon name="pin" size={18} />
+                <span>
+                  Nejlépe: <b>{fmtSpeed(hud.bestMbps)} Mbit/s</b>
+                </span>
+                <span className={`rating-chip ${rating}`}>{RATING_COPY[rating]}</span>
+              </div>
+            )}
 
             {!ready && (
               <div className="scan-progress" aria-hidden>
@@ -363,16 +370,15 @@ function MeasureFlow({ onConfirm }: { onConfirm: (hud: HudState) => void }) {
             )}
 
             <button className="btn btn-primary btn-block" disabled={!ready} onClick={confirmPlace}>
-              {ready
-                ? "Potvrdit toto místo"
-                : `Měřím… ${hud.samples}/${MIN_SAMPLES_TO_CONFIRM}`}
+              {ready ? "Potvrdit toto místo" : `Měřím… ${hud.samples}/${MIN_SAMPLES_TO_CONFIRM}`}
             </button>
 
-            <p className="scan-hint">
-              {mode === "ar"
-                ? "Choďte po místnosti — sloupce rostou tam, kde jste byli."
-                : "Tažením otáčejte · kolečkem přibližujte."}
-            </p>
+            {hud.samples > 0 && (
+              <p className="scan-details">
+                Prošli jste {hud.cells} m² · {hud.samples} měření
+                {mode === "sim" && " · tažením otáčejte"}
+              </p>
+            )}
           </div>
         </div>
       </div>
