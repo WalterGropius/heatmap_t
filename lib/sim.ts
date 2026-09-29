@@ -163,13 +163,18 @@ export function startSim(opts: {
     let dy = 0;
     if (card && card.width > 0) {
       const box = opts.container.getBoundingClientRect();
-      if (card.width >= w * 0.8) dy = (card.top - box.top) / 2 - h / 2;
+      // a horizontally centred card sits at the bottom (full width on phones,
+      // 440 px on desktops); otherwise it is the landscape side panel
+      const centred = Math.abs(card.left + card.width / 2 - (box.left + w / 2)) < w * 0.1;
+      if (centred) dy = (card.top - box.top) / 2 - h / 2;
       else dx = (card.left - box.left) / 2 - w / 2;
     }
     const fullH = h + 2 * Math.abs(dy);
     // the field of view spans the virtual full height; widen it so the
     // visible window keeps the scene at the same scale
     camera.fov = (2 * Math.atan(Math.tan((FOV * Math.PI) / 360) * (fullH / h)) * 180) / Math.PI;
+    // setViewOffset overwrites aspect with the virtual view's; clearing does not restore it
+    camera.aspect = w / h;
     if (Math.abs(dx) < 1 && Math.abs(dy) < 1) camera.clearViewOffset();
     else camera.setViewOffset(w + 2 * Math.abs(dx), fullH, Math.abs(dx) - dx, Math.abs(dy) - dy, w, h);
   };

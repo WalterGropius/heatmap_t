@@ -7,7 +7,7 @@ import Banner from "@/components/Banner";
 import BrandMark from "@/components/BrandMark";
 import Icon, { SignalBars, type IconName } from "@/components/Icon";
 import { ArIconButton } from "@/components/ArCamera";
-import { EMPTY_HUD, type HudState } from "@/lib/hud";
+import { EMPTY_HUD, GUIDE_MIN_DISTANCE, type HudState } from "@/lib/hud";
 import { useSessionStore, type PlaceRating } from "@/lib/session-store";
 import { buildTmczPayload, submitInstallData } from "@/lib/tmcz";
 
@@ -108,7 +108,8 @@ function guidance(hud: HudState, mode: Mode): { text: string; tone: "ok" | "wait
   if (mode === "ar" && !hud.tracking)
     return { text: "Hledám polohu — pomalu pohybujte telefonem.", tone: "wait", icon: "scan" };
   if (hud.onBestSpot) return { text: "Stojíte na nejsilnějším místě — sem s routerem!", tone: "ok", icon: "checkCircle" };
-  if (hud.distanceToBestM !== null && hud.distanceToBestM >= 1)
+  // same threshold as the floor arrow, so the text never promises an arrow that is not drawn
+  if (hud.distanceToBestM !== null && hud.distanceToBestM >= GUIDE_MIN_DISTANCE)
     return {
       text: `Nejsilnější místo je ${nf1.format(hud.distanceToBestM)} m odsud — jděte za šipkou k magenta špendlíku.`,
       tone: "go",

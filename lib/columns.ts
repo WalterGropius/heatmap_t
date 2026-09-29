@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { GUIDE_MIN_DISTANCE } from "./hud";
 
 /** Maximum column height in meters — reached by the fastest cell of the session. */
 export const MAX_HEIGHT = 2;
@@ -15,8 +16,7 @@ const TILE = 0.94;
 const PIN_HEIGHT = 1.15;
 /** Pin label height as a share of the view (sizeAttenuation off): ~6 % of the screen height. */
 const LABEL_SIZE = 0.065;
-/** The guide arrow only shows while the best spot is at least this far away. */
-const GUIDE_MIN_DISTANCE = 1.2;
+
 /**
  * Samples kept per cell. A cell reports the mean of its last RECENT_SAMPLES
  * transfers, never a single one: throughput over a wireless link bursts, and a

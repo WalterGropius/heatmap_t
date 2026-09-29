@@ -35,6 +35,8 @@ const VIEWPORTS = {
   android: { width: 360, height: 760, cam: [480, 640] },
   landscape: { width: 844, height: 390, cam: [640, 480] },
   tablet: { width: 820, height: 1180, cam: [480, 640] },
+  // not in the default set: the camera steps are phone-only, but the heatmap simulation runs on desktops
+  desktop: { width: 1280, height: 800, cam: [640, 480], desktop: true },
 };
 const FLOW_VIEWPORTS = (args.viewports ?? "phone,android,landscape,tablet").split(",");
 const GALLERY_VIEWPORT = FLOW_VIEWPORTS[0];
@@ -115,9 +117,9 @@ async function openPage(browser, vpName, { session = XIAOMI } = {}) {
   const vp = VIEWPORTS[vpName];
   const context = await browser.newContext({
     viewport: { width: vp.width, height: vp.height },
-    deviceScaleFactor: 2,
-    isMobile: true,
-    hasTouch: true,
+    deviceScaleFactor: vp.desktop ? 1 : 2,
+    isMobile: !vp.desktop,
+    hasTouch: !vp.desktop,
   });
   await context.route("**/__fixtures/**", (route) => {
     const rel = decodeURIComponent(new URL(route.request().url()).pathname.replace(/^\/__fixtures\//, ""));
