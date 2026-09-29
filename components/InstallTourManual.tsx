@@ -1,9 +1,24 @@
 "use client";
 
 import { useState } from "react";
-import type { RouterModel } from "@/lib/routers";
+import type { RouterModel, StepHighlight } from "@/lib/routers";
+import Banner from "./Banner";
+import Icon, { type IconName } from "./Icon";
 
-const ICONS: Record<string, string> = { power: "🔌", sim: "🪪", button: "🔘", led: "💡" };
+const ICONS: Record<NonNullable<StepHighlight["icon"]>, IconName> = {
+  power: "plug",
+  sim: "sim",
+  button: "power",
+  led: "led",
+};
+
+type LedChoice = "ok" | "off" | "weak";
+
+const LED_OPTIONS: { id: LedChoice; label: string }[] = [
+  { id: "ok", label: "LED svítí zeleně / OK" },
+  { id: "weak", label: "LED svítí, ale signál je slabý" },
+  { id: "off", label: "LED nesvítí" },
+];
 
 export default function InstallTourManual({
   router,
@@ -15,11 +30,12 @@ export default function InstallTourManual({
   onBack: () => void;
 }) {
   const [stepIdx, setStepIdx] = useState(0);
-  const [ledChoice, setLedChoice] = useState<"ok" | "off" | "weak" | null>(null);
+  const [ledChoice, setLedChoice] = useState<LedChoice | null>(null);
   const step = router.steps[stepIdx];
   const isLast = stepIdx === router.steps.length - 1;
   const isLedStep = step.key === "led";
   const canAdvance = isLedStep ? ledChoice !== null : true;
+  const highlight = step.highlights[0];
 
   const next = () => {
     if (isLast) {
@@ -40,67 +56,64 @@ export default function InstallTourManual({
   };
 
   return (
-    <div className="step-body" style={{ paddingTop: 8, flex: 1, overflowY: "auto" }}>
-      <p className="step-eyebrow">
-        Manuální režim · Krok {stepIdx + 1}/{router.steps.length}
-      </p>
-      <h1>{step.title}</h1>
-      <p className="lead">{step.description}</p>
+    <>
+      <div className="step-body">
+        <div className="tour-steps" aria-hidden>
+          {router.steps.map((s, i) => (
+            <span key={s.key} className={i < stepIdx ? "done" : i === stepIdx ? "current" : ""}>
+              {s.shortTitle}
+            </span>
+          ))}
+        </div>
+        <p className="step-eyebrow">
+          Manuální režim · Krok {stepIdx + 1} z {router.steps.length}
+        </p>
+        <h1>{step.title}</h1>
+        <p className="lead">{step.description}</p>
 
-      <div
-        style={{
-          fontSize: 64,
-          textAlign: "center",
-          margin: "12px 0 20px",
-          background: "#f5f5f5",
-          borderRadius: 16,
-          padding: "28px 0",
-        }}
-        aria-hidden
-      >
-        {ICONS[step.highlights[0]?.icon ?? "power"]}
+        <div className="manual-art">
+          {highlight?.image ? (
+            <img src={highlight.image} alt="" />
+          ) : (
+            <Icon name={ICONS[highlight?.icon ?? "power"]} size={72} strokeWidth={1.5} />
+          )}
+        </div>
+
+        {isLedStep ? (
+          <div className="option-list" role="radiogroup" aria-label="Stav LED">
+            {LED_OPTIONS.map((o) => (
+              <button
+                key={o.id}
+                role="radio"
+                aria-checked={ledChoice === o.id}
+                className={`option-card ${ledChoice === o.id ? "selected" : ""}`}
+                onClick={() => setLedChoice(o.id)}
+              >
+                <b>{o.label}</b>
+                <span className="radio" aria-hidden />
+              </button>
+            ))}
+          </div>
+        ) : (
+          <Banner tone="info" icon="checkCircle">
+            Až bude krok hotový, potvrďte tlačítkem níže.
+          </Banner>
+        )}
+
+        {isLedStep && ledChoice === "off" && <Banner tone="error">{router.led.offCopy}</Banner>}
+        {isLedStep && ledChoice === "weak" && <Banner tone="warning">{router.led.weakSignalCopy}</Banner>}
       </div>
 
-      {isLedStep ? (
-        <div className="option-list">
-          <div className={`option-card ${ledChoice === "ok" ? "selected" : ""}`} onClick={() => setLedChoice("ok")}>
-            <b>LED svítí zeleně / OK</b>
-          </div>
-          <div className={`option-card ${ledChoice === "weak" ? "selected" : ""}`} onClick={() => setLedChoice("weak")}>
-            <b>LED svítí, ale signál je slabý</b>
-          </div>
-          <div className={`option-card ${ledChoice === "off" ? "selected" : ""}`} onClick={() => setLedChoice("off")}>
-            <b>LED nesvítí</b>
-          </div>
+      <div className="step-footer-wrap">
+        <div className="step-footer">
+          <button className="btn btn-ghost btn-back" onClick={back}>
+            Zpět
+          </button>
+          <button className="btn btn-primary" disabled={!canAdvance} onClick={next}>
+            {isLast ? "Dokončit instalaci" : "Hotovo, další krok"}
+          </button>
         </div>
-      ) : (
-        <div className="banner success">
-          <span aria-hidden>✅</span>
-          <span>Až bude krok hotový, potvrďte tlačítkem níže.</span>
-        </div>
-      )}
-
-      {isLedStep && ledChoice === "off" && (
-        <div className="banner error">
-          <span aria-hidden>⚠️</span>
-          <span>{router.led.offCopy}</span>
-        </div>
-      )}
-      {isLedStep && ledChoice === "weak" && (
-        <div className="banner warning">
-          <span aria-hidden>ℹ️</span>
-          <span>{router.led.weakSignalCopy}</span>
-        </div>
-      )}
-
-      <div className="step-footer" style={{ position: "static", border: 0, padding: "20px 0 0" }}>
-        <button className="btn btn-ghost btn-back" onClick={back}>
-          Zpět
-        </button>
-        <button className="btn btn-primary" disabled={!canAdvance} onClick={next}>
-          {isLast ? "Dokončit instalaci" : "Hotovo, další krok"}
-        </button>
       </div>
-    </div>
+    </>
   );
 }

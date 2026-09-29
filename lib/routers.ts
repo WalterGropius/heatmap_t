@@ -23,6 +23,8 @@ export interface StepHighlight {
   id: DetectionClass;
   /** Reference image shown to the user for this highlight, if any. */
   image?: string;
+  /** width / height of `image`, so the callout can be laid out before the image loads. */
+  aspect?: number;
   /** Generic icon key used when the router has no reference photo. */
   icon?: "power" | "sim" | "button" | "led";
 }
@@ -30,9 +32,15 @@ export interface StepHighlight {
 export interface TourStepConfig {
   key: "power" | "sim" | "button" | "led";
   title: string;
+  /** Two-word label for the tour progress bar. */
+  shortTitle: string;
   description: string;
+  /** What to point the camera at, shown while nothing relevant is detected. */
+  aimHint: string;
   failureMessage: string;
   highlights: StepHighlight[];
+  /** Class that shows the step is done (plugged cable, inserted SIM) — framed green when seen. */
+  doneClass?: DetectionClass;
   /** Detection logic driving the "next" button in live-detection mode. */
   specialLogic?: "requirePowcab" | "requireSiminside" | "countOnCheckmark";
 }
@@ -64,39 +72,50 @@ const xiaomiSteps: TourStepConfig[] = [
   {
     key: "power",
     title: "Zapojení napájecího kabelu",
+    shortTitle: "Napájení",
     description:
       "Do vyznačeného konektoru (POWER) zapojte napájecí kabel a druhý konec zapojte do elektrické zásuvky.",
+    aimHint: "Namiřte kameru na zadní stranu routeru s konektory",
     failureMessage: "Zapojte napájecí kabel, namiřte kamerou na router a zkuste to znovu.",
     specialLogic: "requirePowcab",
-    highlights: [{ id: "pow", image: "/router-xiaomi/step-power.png" }],
+    doneClass: "powcab",
+    highlights: [{ id: "pow", image: "/router-xiaomi/step-power.png", aspect: 166 / 74 }],
   },
   {
     key: "sim",
     title: "Vložení SIM karty",
+    shortTitle: "SIM karta",
     description: "Otevřete SIM slot a vložte SIM kartu.",
+    aimHint: "Namiřte kameru na slot SIM karty",
     failureMessage: "Otevřete SIM slot a vložte SIM kartu, namiřte kamerou na router a zkuste to znovu.",
     specialLogic: "requireSiminside",
+    doneClass: "siminside",
     highlights: [
-      { id: "sim", image: "/router-xiaomi/step-sim-open.png" },
-      { id: "siminside", image: "/router-xiaomi/step-sim-insert.png" },
+      { id: "sim", image: "/router-xiaomi/step-sim-open.png", aspect: 592 / 370 },
+      { id: "simopen", image: "/router-xiaomi/step-sim-insert.png", aspect: 270 / 144 },
+      { id: "siminside", image: "/router-xiaomi/step-sim-insert.png", aspect: 270 / 144 },
     ],
   },
   {
     key: "button",
     title: "Zapnutí routeru",
+    shortTitle: "Zapnutí",
     description: "Najděte tlačítko pro zapnutí a ujistěte se, že je adaptér v zásuvce.",
+    aimHint: "Namiřte kameru na tlačítko napájení",
     failureMessage: "Namiřte kamerou na zadní stranu routeru a zkuste to znovu.",
-    highlights: [{ id: "onbutton", image: "/router-xiaomi/step-button.png" }],
+    highlights: [{ id: "onbutton", image: "/router-xiaomi/step-button.svg", aspect: 200 / 90 }],
   },
   {
     key: "led",
     title: "Kontrola systémové a 4G/5G LED",
+    shortTitle: "Kontrolky",
     description:
       "Vyčkejte, až se router zapne a stav kontrolek se ustálí, poté na ně namiřte kamerou.",
+    aimHint: "Namiřte kameru na kontrolky na přední straně routeru",
     failureMessage:
       "Vyčkejte, až se router zapne a stav kontrolek se ustálí, poté na ně namiřte kamerou a zkuste to znovu.",
     specialLogic: "countOnCheckmark",
-    highlights: [{ id: "on", image: "https://placehold.co/64" }],
+    highlights: [{ id: "on", image: "/router-xiaomi/step-led.svg", aspect: 220 / 140 }],
   },
 ];
 
@@ -104,6 +123,8 @@ const nokiaSteps: TourStepConfig[] = [
   {
     key: "power",
     title: "Zapojení napájecího kabelu",
+    shortTitle: "Napájení",
+    aimHint: "Najděte konektor POWER na zadní straně routeru",
     description:
       "Do konektoru POWER na zadní straně routeru zapojte napájecí kabel a druhý konec do elektrické zásuvky.",
     failureMessage: "Zapojte napájecí kabel a potvrďte, že je hotovo.",
@@ -112,6 +133,8 @@ const nokiaSteps: TourStepConfig[] = [
   {
     key: "sim",
     title: "Vložení SIM karty",
+    shortTitle: "SIM karta",
+    aimHint: "Najděte kryt SIM slotu na spodní straně routeru",
     description: "Otevřete kryt SIM slotu na spodní straně routeru a vložte SIM kartu.",
     failureMessage: "Vložte SIM kartu a potvrďte, že je hotovo.",
     highlights: [{ id: "sim", icon: "sim" }],
@@ -119,6 +142,8 @@ const nokiaSteps: TourStepConfig[] = [
   {
     key: "button",
     title: "Zapnutí routeru",
+    shortTitle: "Zapnutí",
+    aimHint: "Najděte tlačítko ON/OFF na zadní straně routeru",
     description: "Stiskněte tlačítko ON/OFF na zadní straně routeru.",
     failureMessage: "Stiskněte tlačítko pro zapnutí a potvrďte, že je hotovo.",
     highlights: [{ id: "onbutton", icon: "button" }],
@@ -126,6 +151,8 @@ const nokiaSteps: TourStepConfig[] = [
   {
     key: "led",
     title: "Kontrola stavové LED",
+    shortTitle: "Kontrolky",
+    aimHint: "Podívejte se na stavovou LED na přední straně routeru",
     description:
       "Vyčkejte, až se router zapne a stavová LED přestane blikat, poté potvrďte její barvu.",
     failureMessage: "Vyčkejte na ustálení LED a poté potvrďte její stav.",

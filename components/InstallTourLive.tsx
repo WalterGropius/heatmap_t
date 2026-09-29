@@ -1,15 +1,33 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useYoloModel } from "@/lib/yolo/useYoloModel";
 import { useCameraDetection } from "@/lib/yolo/useCameraDetection";
-import type { RouterModel, StepHighlight } from "@/lib/routers";
+import { useTrackedTargets } from "@/lib/yolo/useTrackedTargets";
+import type { RouterModel } from "@/lib/routers";
+import { AimHint, ArIconButton, ArScreen, Callout, LedMarker, Reticle, haptic, type LedState } from "./ArCamera";
+import Banner from "./Banner";
+import BrandMark from "./BrandMark";
+import Icon from "./Icon";
 
 const CONF = 0.7;
-/** Height of the rounded callout plate drawn over the camera feed, in CSS px. */
-const PLATE_H = 100;
-/** Keep the plate this far from the edges of the camera stage. */
-const PLATE_MARGIN = 8;
+const LED_CLASSES = ["on", "off", "orange"] as const;
+const LEDS_REQUIRED = 3;
+
+/** What the customer is looking at, in words — never the raw class id. */
+const PART_NAME: Record<string, string> = {
+  pow: "konektor napájení",
+  powcab: "zapojený napájecí kabel",
+  sim: "slot SIM karty",
+  simopen: "otevřený slot SIM karty",
+  siminside: "vloženou SIM kartu",
+  onbutton: "tlačítko napájení",
+  on: "kontrolky",
+  off: "kontrolky",
+  orange: "kontrolky",
+};
+
+const STATUS_ICON = { scan: "camera", found: "scan", ok: "checkCircle", warn: "alert", busy: "camera" } as const;
 
 function classConf(detections: { class: string; confidence: number }[], id: string, min = CONF) {
   return detections.some((d) => d.class.toLowerCase() === id.toLowerCase() && d.confidence >= min);
@@ -19,10 +37,13 @@ export default function InstallTourLive({
   router,
   onDone,
   onBack,
+  onCameraUnavailable,
 }: {
   router: RouterModel;
   onDone: (ledOk: boolean) => void;
   onBack: () => void;
+  /** Switch to the manual checklist when the camera or the model cannot run. */
+  onCameraUnavailable: () => void;
 }) {
   const { model, progress, status, error: modelError } = useYoloModel();
   const { videoRef, detections, isDetecting, cameraError, startCamera, stopCamera } = useCameraDetection({
@@ -34,17 +55,15 @@ export default function InstallTourLive({
   const [powcabDetected, setPowcabDetected] = useState(false);
   const [siminsideDetected, setSiminsideDetected] = useState(false);
   const [onCount, setOnCount] = useState(0);
-  // Mapping from video pixels to stage pixels. The <video> is rendered with
-  // object-fit: cover, so it is uniformly scaled and centre-cropped — a
-  // per-axis scale would drift the callout off the connector whenever the
-  // camera's aspect ratio differs from the stage's.
-  const [view, setView] = useState({ s: 1, ox: 0, oy: 0, w: 0, h: 0 });
-  const [plateW, setPlateW] = useState(0);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const plateRef = useRef<HTMLDivElement>(null);
 
   const step = router.steps[stepIdx];
   const isLast = stepIdx === router.steps.length - 1;
+  const isLed = step.key === "led";
+
+  const trackedIds = isLed
+    ? [...LED_CLASSES]
+    : [...step.highlights.map((h) => h.id), ...(step.doneClass ? [step.doneClass] : [])];
+  const tracks = useTrackedTargets(detections, { classes: trackedIds, minConfidence: CONF });
 
   useEffect(() => {
     if (model && !isDetecting) startCamera();
@@ -72,91 +91,54 @@ export default function InstallTourLive({
       if (hasSiminside && hasModem) setSiminsideDetected(true);
     } else if (step.specialLogic === "countOnCheckmark") {
       const count = detections.filter((d) => d.class.toLowerCase() === "on" && d.confidence >= 0.7).length;
-      setOnCount((prev) => Math.max(prev, Math.min(count, 3)));
+      setOnCount((prev) => Math.max(prev, Math.min(count, LEDS_REQUIRED)));
     }
   }, [detections, step.specialLogic]);
 
-  const updateScale = useCallback(() => {
-    const video = videoRef.current;
-    const container = containerRef.current;
-    if (!video || !container || !video.videoWidth) return;
-    const w = container.clientWidth;
-    const h = container.clientHeight;
-    const s = Math.max(w / video.videoWidth, h / video.videoHeight);
-    setView({ s, ox: (w - video.videoWidth * s) / 2, oy: (h - video.videoHeight * s) / 2, w, h });
-  }, [videoRef]);
+  const gateOpen =
+    step.specialLogic === "requirePowcab"
+      ? powcabDetected
+      : step.specialLogic === "requireSiminside"
+        ? siminsideDetected
+        : step.specialLogic === "countOnCheckmark"
+          ? onCount >= LEDS_REQUIRED
+          : true;
+  const hasGate = !!step.specialLogic;
 
-  const measurePlate = useCallback(() => {
-    setPlateW(plateRef.current?.offsetWidth ?? 0);
-  }, []);
-
+  // one buzz when a gated step flips to done
+  const buzzed = useRef(false);
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    const onResize = () => {
-      updateScale();
-      // the plate can hit its max-width at a narrower stage, changing its width
-      measurePlate();
-    };
-    video.addEventListener("loadedmetadata", updateScale);
-    window.addEventListener("resize", onResize);
-    updateScale();
-    return () => {
-      video.removeEventListener("loadedmetadata", updateScale);
-      window.removeEventListener("resize", onResize);
-    };
-  }, [videoRef, updateScale, measurePlate, isDetecting]);
+    if (hasGate && gateOpen && !buzzed.current) {
+      buzzed.current = true;
+      haptic([30, 60, 30]);
+    }
+    if (!gateOpen) buzzed.current = false;
+  }, [gateOpen, hasGate]);
 
-  const isNextEnabled = () => {
-    if (step.specialLogic === "requirePowcab") return powcabDetected;
-    if (step.specialLogic === "requireSiminside") return siminsideDetected;
-    if (step.specialLogic === "countOnCheckmark") return onCount >= 3;
-    return true;
-  };
-
-  const hasOff = classConf(detections, "off");
+  const offCount = detections.filter((d) => d.class.toLowerCase() === "off" && d.confidence >= 0.7).length;
+  const hasOff = offCount > 0;
   const hasOrange = classConf(detections, "orange");
   const hasOn = classConf(detections, "on");
-  const offCount = detections.filter((d) => d.class.toLowerCase() === "off" && d.confidence >= 0.7).length;
 
-  let ledStatus: { type: "warning" | "info" | "error"; text: string } | null = null;
-  if (step.key === "led") {
-    if (offCount > 3) ledStatus = { type: "warning", text: router.led.offCopy };
-    else if (hasOff && hasOrange) ledStatus = { type: "info", text: "Router se zapíná. Vyčkejte prosím pár minut." };
-    else if (hasOn) ledStatus = { type: "info", text: "Router se připojuje k síti. Vyčkejte prosím pár minut." };
+  let ledStatus: { tone: "warning" | "info"; text: string } | null = null;
+  if (isLed && !gateOpen) {
+    if (offCount > 3) ledStatus = { tone: "warning", text: router.led.offCopy };
+    else if (hasOff && hasOrange) ledStatus = { tone: "info", text: "Router se zapíná. Vyčkejte prosím pár minut." };
+    else if (hasOn) ledStatus = { tone: "info", text: "Router se připojuje k síti. Vyčkejte prosím pár minut." };
   }
 
-  const highestForStep = (): { detection: (typeof detections)[number]; highlight: StepHighlight } | null => {
-    const candidates = detections
-      .filter((d) => d.confidence >= CONF && step.highlights.some((h) => h.id.toLowerCase() === d.class.toLowerCase()))
-      .sort((a, b) => b.confidence - a.confidence);
-    if (candidates.length === 0) return null;
-    const top = candidates[0];
-    const highlight = step.highlights.find((h) => h.id.toLowerCase() === top.class.toLowerCase())!;
-    return { detection: top, highlight };
-  };
-  const active = highestForStep();
-
-  /** Anchor the callout above the detection, kept fully inside the stage so
-   *  its rounded corners never get clipped by the camera frame. */
-  const platePosition = ([bx, by, bw]: [number, number, number, number]) => {
-    const cx = (bx + bw / 2) * view.s + view.ox;
-    const cy = by * view.s + view.oy;
-    const half = plateW / 2;
-    const left =
-      view.w > 0 && plateW > 0
-        ? Math.min(Math.max(cx, half + PLATE_MARGIN), Math.max(half + PLATE_MARGIN, view.w - half - PLATE_MARGIN))
-        : cx;
-    const top =
-      view.h > 0
-        ? Math.min(Math.max(cy - PLATE_H / 2, PLATE_MARGIN), Math.max(PLATE_MARGIN, view.h - PLATE_H - PLATE_MARGIN))
-        : Math.max(PLATE_MARGIN, cy - PLATE_H / 2);
-    return { left: `${left}px`, top: `${top}px` };
-  };
+  const doneTrack = step.doneClass ? tracks.find((t) => t.cls === step.doneClass) : undefined;
+  // the part still to act on: an LED to check, or a connector/slot with instruction artwork
+  const primary = isLed
+    ? tracks.find((t) => t.cls === "on")
+    : tracks.find((t) => step.highlights.some((h) => h.id === t.cls && h.image));
+  const primaryHighlight = primary && step.highlights.find((h) => h.id.toLowerCase() === primary.cls);
+  const seesSomething = tracks.length > 0;
+  const stepDone = hasGate && gateOpen;
 
   const next = () => {
     if (isLast) {
-      onDone(onCount >= 3);
+      onDone(onCount >= LEDS_REQUIRED);
       return;
     }
     setStepIdx((i) => i + 1);
@@ -169,66 +151,99 @@ export default function InstallTourLive({
     setStepIdx((i) => i - 1);
   };
 
+  const failed = modelError || cameraError;
+  const loading = !model && !modelError;
+
+  // One status line carries everything that changes while the step is on
+  // screen, so the sheet — and with it the camera view above it — keeps its height.
+  let statusLine: { tone: "scan" | "found" | "ok" | "busy" | "warn"; text: string };
+  if (loading) statusLine = { tone: "busy", text: `${status} ${progress} %` };
+  else if (!isDetecting) statusLine = { tone: "busy", text: "Zapínám kameru…" };
+  else if (stepDone) statusLine = { tone: "ok", text: isLed ? "Router je připojený k síti" : "Správné zapojení" };
+  else if (ledStatus) statusLine = { tone: ledStatus.tone === "warning" ? "warn" : "found", text: ledStatus.text };
+  else if (isLed && seesSomething)
+    statusLine = { tone: "found", text: `Svítí ${Math.min(onCount, LEDS_REQUIRED)} z ${LEDS_REQUIRED} kontrolek` };
+  else if (primary) statusLine = { tone: "found", text: `Vidím ${PART_NAME[primary.cls] ?? "router"}` };
+  else if (doneTrack) statusLine = { tone: "found", text: `Vidím ${PART_NAME[doneTrack.cls] ?? "router"}` };
+  else statusLine = { tone: "scan", text: "Hledám…" };
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-      <div className="step-body" style={{ paddingBottom: 0, overflowY: "auto", flex: 1, minHeight: 0 }}>
-        {(modelError || cameraError) && (
-          <div className="banner error">
-            <span aria-hidden>⚠️</span>
-            <span>{modelError || cameraError}</span>
-          </div>
-        )}
-        {!model && !modelError && (
-          <div className="banner info">
-            <span className="dot-spin" aria-hidden />
-            <span>
-              {status} ({progress}%)
-            </span>
-          </div>
-        )}
-
-        <div className="camera-stage" ref={containerRef}>
-          <video ref={videoRef} muted playsInline />
-          {!isDetecting && model && <div className="camera-placeholder">Zapínám kameru…</div>}
-          {active?.highlight.image && (
-            <div ref={plateRef} className="camera-highlight" style={platePosition(active.detection.bbox)}>
-              <img src={active.highlight.image} alt={step.title} onLoad={measurePlate} />
+    <ArScreen
+      videoRef={videoRef}
+      topbar={
+        <>
+          <ArIconButton icon="back" label="Zpět" onClick={back} />
+          <div className="ar-topbar-center">
+            <div className="ar-steps" aria-hidden>
+              {router.steps.map((s, i) => (
+                <span key={s.key} className={i < stepIdx ? "done" : i === stepIdx ? "current" : ""} />
+              ))}
             </div>
+            <p className="ar-eyebrow">
+              Krok {stepIdx + 1} z {router.steps.length} · {step.shortTitle}
+            </p>
+          </div>
+          <BrandMark size={34} />
+        </>
+      }
+      overlay={(geo) => {
+        if (!geo.ready || failed) return null;
+        return (
+          <>
+            {isLed ? (
+              tracks.map((t) => <LedMarker key={t.id} box={t.box} geo={geo} state={t.cls as LedState} />)
+            ) : doneTrack ? (
+              // the plugged cable / inserted SIM is what matters now — frame only that, in green
+              <Reticle key={doneTrack.id} box={doneTrack.box} geo={geo} held={!doneTrack.fresh} tone="ok" />
+            ) : (
+              tracks.map((t) => <Reticle key={t.id} box={t.box} geo={geo} held={!t.fresh} />)
+            )}
+            {primary && primaryHighlight?.image && !stepDone && !doneTrack && (
+              <Callout
+                box={primary.box}
+                geo={geo}
+                image={primaryHighlight.image}
+                aspect={primaryHighlight.aspect ?? 2}
+                alt={step.title}
+              />
+            )}
+            {isDetecting && !seesSomething && !stepDone && <AimHint geo={geo} text={step.aimHint} />}
+          </>
+        );
+      }}
+      sheet={
+        <>
+          <div className={`ar-status ${statusLine.tone}`} role="status" aria-live="polite">
+            {statusLine.tone === "busy" ? (
+              <span className="dot-spin" aria-hidden />
+            ) : (
+              <Icon name={STATUS_ICON[statusLine.tone]} size={18} />
+            )}
+            <span>{statusLine.text}</span>
+          </div>
+          <h1 className="ar-title">{step.title}</h1>
+          <p className="ar-lead">{step.description}</p>
+
+          {failed && (
+            <>
+              <Banner tone="error">{failed}</Banner>
+              <button className="btn btn-ghost btn-block" onClick={onCameraUnavailable}>
+                Pokračovat bez kamery
+              </button>
+            </>
           )}
-        </div>
-      </div>
 
-      <div className="step-footer" style={{ position: "static" }}>
-        <div style={{ width: "100%" }}>
-          <h1 style={{ fontSize: 20, margin: "0 0 6px" }}>{step.title}</h1>
-          <p className="lead" style={{ margin: "0 0 12px", fontSize: 14 }}>
-            {step.description}
-          </p>
-
-          {isNextEnabled() ? (
-            <div className="banner success" style={{ marginBottom: 12 }}>
-              <span aria-hidden>✅</span>
-              <span>Správné zapojení</span>
-            </div>
-          ) : (
-            ledStatus && (
-              <div className={`banner ${ledStatus.type === "warning" ? "warning" : "info"}`} style={{ marginBottom: 12 }}>
-                <span aria-hidden>{ledStatus.type === "warning" ? "⚠️" : "ℹ️"}</span>
-                <span>{ledStatus.text}</span>
-              </div>
-            )
-          )}
-
-          <div style={{ display: "flex", gap: 10 }}>
-            <button className="btn btn-ghost btn-back" onClick={back}>
-              Zpět
-            </button>
-            <button className="btn btn-primary" style={{ flex: 1 }} disabled={!isNextEnabled()} onClick={next}>
+          {!failed && (
+            <button
+              className={`btn btn-primary btn-block${stepDone ? " pulse" : ""}`}
+              disabled={!gateOpen}
+              onClick={next}
+            >
               {isLast ? "Dokončit instalaci" : "Další"}
             </button>
-          </div>
-        </div>
-      </div>
-    </div>
+          )}
+        </>
+      }
+    />
   );
 }

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import StepShell from "@/components/StepShell";
 import { useSessionStore } from "@/lib/session-store";
 import { bearingDegrees, distanceKm, parseLatLng } from "@/lib/geo";
+import Banner from "@/components/Banner";
 
 type Status = "idle" | "calibrating" | "started" | "error";
 
@@ -142,7 +143,7 @@ export default function CompassPage() {
         </>
       }
     >
-      <p className="step-eyebrow">Krok 3 · Směr k vysílači</p>
+      <p className="step-eyebrow">Směr k vysílači</p>
       <h1>Najdeme směr k vysílači</h1>
       <p className="lead">
         Ideální oblast pro router je u okna nebo na parapetu směrem k
@@ -150,16 +151,11 @@ export default function CompassPage() {
         kvality připojení.
       </p>
 
-      {status === "error" && errorMessage && (
-        <div className="banner error">
-          <span aria-hidden>⚠️</span>
-          <span>{errorMessage}</span>
-        </div>
-      )}
+      {status === "error" && errorMessage && <Banner tone="error">{errorMessage}</Banner>}
 
       {status === "calibrating" && (
         <>
-          <img src="/calibrate-compass.jpeg" alt="Kalibrace kompasu" style={{ width: "70%", margin: "0 auto 16px", display: "block", borderRadius: 12 }} />
+          <img src="/calibrate-compass.jpeg" alt="Kalibrace kompasu" className="compass-calibrate" />
           <p className="lead" style={{ textAlign: "center" }}>
             Pohybujte telefonem ve tvaru osmičky, dokud se kompas nezkalibruje.
           </p>
@@ -175,7 +171,7 @@ export default function CompassPage() {
         <div className="compass-wrap">
           <div className={`compass-ring ${pointingCorrectly ? "on-target" : ""}`}>
             {status === "started" ? (
-              <div className={`compass-arrow ${pointingCorrectly ? "on-target" : ""}`} style={{ transform: `rotate(${rotation}deg)` }}>
+              <div className="compass-arrow" style={{ transform: `rotate(${rotation}deg)` }}>
                 {pointingCorrectly ? (
                   <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M20 6 9 17l-5-5" />
@@ -187,7 +183,7 @@ export default function CompassPage() {
                 )}
               </div>
             ) : (
-              <span style={{ color: "var(--gray)", fontSize: 13, textAlign: "center", padding: "0 20px" }}>
+              <span className="compass-idle">
                 {status === "error" ? "Chyba při spouštění kompasu" : "Kompas zatím neběží"}
               </span>
             )}

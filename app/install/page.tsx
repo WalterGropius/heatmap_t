@@ -1,9 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { FLOW_STEPS, stepIndex } from "@/lib/flow";
 import { useSessionStore } from "@/lib/session-store";
 import { getRouter } from "@/lib/routers";
+import { AppBar } from "@/components/StepShell";
 import InstallTourLive from "@/components/InstallTourLive";
 import InstallTourManual from "@/components/InstallTourManual";
 
@@ -13,11 +14,12 @@ export default function InstallPage() {
   const consentGranted = useSessionStore((s) => s.consentGranted);
   const patch = useSessionStore((s) => s.patch);
   const routerModel = getRouter(routerId);
+  const [cameraFailed, setCameraFailed] = useState(false);
 
-  // No trained detector for this router, or the customer skipped camera
-  // consent: fall back to a manual, still fully guided, checklist.
-  const manual = !routerModel.hasDetectionModel || consentGranted === false;
-  const idx = stepIndex("install");
+  // No trained detector for this router, the customer skipped camera
+  // consent, or the camera/model would not start: fall back to a manual,
+  // still fully guided, checklist.
+  const manual = !routerModel.hasDetectionModel || consentGranted === false || cameraFailed;
 
   const handleDone = (ledOk: boolean) => {
     patch({ ledOk });
@@ -25,18 +27,21 @@ export default function InstallPage() {
   };
   const handleBack = () => nav.push(consentGranted === false ? "/fallback" : "/confirm");
 
+  if (!manual) {
+    return (
+      <InstallTourLive
+        router={routerModel}
+        onDone={handleDone}
+        onBack={handleBack}
+        onCameraUnavailable={() => setCameraFailed(true)}
+      />
+    );
+  }
+
   return (
     <div className="step-page">
-      <div className="step-progress">
-        {FLOW_STEPS.map((s, i) => (
-          <div key={s} className={`seg ${i < idx ? "done" : i === idx ? "current" : ""}`} />
-        ))}
-      </div>
-      {manual ? (
-        <InstallTourManual router={routerModel} onDone={handleDone} onBack={handleBack} />
-      ) : (
-        <InstallTourLive router={routerModel} onDone={handleDone} onBack={handleBack} />
-      )}
+      <AppBar step="install" />
+      <InstallTourManual router={routerModel} onDone={handleDone} onBack={handleBack} />
     </div>
   );
 }

@@ -1,14 +1,18 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useSessionStore } from "@/lib/session-store";
+import { useSessionStore, type PlaceRating } from "@/lib/session-store";
 import { getRouter } from "@/lib/routers";
+import BrandMark from "@/components/BrandMark";
+import Icon, { SignalBars } from "@/components/Icon";
 
-const RATING_LABEL: Record<string, string> = {
-  nevhodne: "Slabý signál",
-  pouzitelne: "Použitelné místo",
-  doporucene: "Doporučené místo",
+const RATING: Record<PlaceRating, { label: string; bars: 1 | 3 | 4 }> = {
+  nevhodne: { label: "Slabý signál", bars: 1 },
+  pouzitelne: { label: "Použitelné místo", bars: 3 },
+  doporucene: { label: "Doporučené místo", bars: 4 },
 };
+
+const nf1 = new Intl.NumberFormat("cs-CZ", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
 export default function DonePage() {
   const nav = useRouter();
@@ -28,58 +32,63 @@ export default function DonePage() {
   };
 
   return (
-    <div className="flex-done" style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", background: success ? "var(--magenta)" : "var(--bg)", color: success ? "#fff" : "var(--ink)" }}>
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", textAlign: "center", padding: "40px 24px", gap: 18 }}>
+    <div className={`done-page${success ? " success" : ""}`}>
+      <div className="done-top">
+        <BrandMark inverted={success} size={34} />
+        <span>Instalace routeru</span>
+      </div>
+
+      <main className="done-main">
         {success ? (
           <>
-            <span className="badge" style={{ color: "#fff" }}>
-              Zapojení bylo úspěšné ✓
+            <span className="done-check">
+              <Icon name="check" size={38} strokeWidth={3} />
             </span>
-            <h1 style={{ fontSize: 32, margin: 0 }}>
-              A je to! Váš router
-              <br />
-              {routerModel.name}
-              <br />
-              máte úspěšně zapojený.
-            </h1>
-            <img src={routerModel.image} alt={routerModel.name} style={{ height: 160, marginTop: 10, filter: "drop-shadow(0 10px 20px rgba(0,0,0,.25))" }} />
+            <span className="badge" style={{ color: "#fff" }}>
+              Zapojení bylo úspěšné
+            </span>
+            <h1>A je to! Váš router {routerModel.name} je zapojený.</h1>
+            <img className="done-product" src={routerModel.image} alt="" />
             {placeRating && (
-              <p style={{ opacity: 0.9 }}>
-                {RATING_LABEL[placeRating]}
-                {bestMbps ? ` · až ${bestMbps.toFixed(1)} Mbit/s` : ""}
-              </p>
+              <span className="done-stat">
+                <SignalBars level={RATING[placeRating].bars} size={26} />
+                {RATING[placeRating].label}
+                {bestMbps ? ` · až ${nf1.format(bestMbps)} Mbit/s` : ""}
+              </span>
             )}
+            <p>Vítejte v síti T-Mobile.</p>
           </>
         ) : (
           <>
+            <span className="done-check">
+              <Icon name="alert" size={34} />
+            </span>
             <span className="badge">Nedokončeno</span>
-            <h1 style={{ fontSize: 28, margin: 0 }}>4G/5G LED zatím nesvítí</h1>
-            <p className="lead" style={{ maxWidth: 420 }}>
+            <h1>4G/5G LED zatím nesvítí</h1>
+            <p style={{ color: "var(--gray)" }}>
               {routerModel.led.offCopy} Slabší signál nemusí být chyba — v
               některých bytech jde o nejlepší dostupný stav.
             </p>
-            <p className="lead" style={{ maxWidth: 420 }}>
+            <p style={{ color: "var(--gray)" }}>
               Pokud problém přetrvává, otevřete aplikaci OneApp nebo
               kontaktujte zákaznickou podporu T-Mobile.
             </p>
           </>
         )}
-      </div>
+      </main>
 
-      <div style={{ padding: 20, display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+      <div className="done-actions">
         {!success && (
           <button className="btn btn-primary" onClick={() => nav.push("/install")}>
-            Zkusit znovu
+            <Icon name="refresh" size={20} /> Zkusit znovu
           </button>
         )}
-        <button className={success ? "btn" : "btn btn-ghost"} style={success ? { background: "#fff", color: "var(--magenta)" } : undefined} onClick={restart}>
+        <button className={success ? "btn btn-on-magenta" : "btn btn-ghost"} onClick={restart}>
           Spustit instalaci znovu
         </button>
       </div>
 
-      {sessionId && (
-        <div style={{ textAlign: "center", fontSize: 11, opacity: 0.6, paddingBottom: 16 }}>Session: {sessionId}</div>
-      )}
+      {sessionId && <div className="done-session">Session: {sessionId}</div>}
     </div>
   );
 }

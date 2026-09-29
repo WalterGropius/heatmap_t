@@ -4,25 +4,26 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import StepShell from "@/components/StepShell";
 import { useSessionStore } from "@/lib/session-store";
+import Icon, { type IconName } from "@/components/Icon";
 
-const ITEMS = [
+const ITEMS: { glyph: IconName; title: string; body: string }[] = [
   {
-    glyph: "📷",
+    glyph: "camera",
     title: "Kamera",
     body: "Pro rozpoznání routeru a navedení při zapojování SIM karty, kabelů a tlačítek.",
   },
   {
-    glyph: "📍",
+    glyph: "pin",
     title: "Poloha",
     body: "Pro výpočet směru a vzdálenosti k vysílači (BTS) a doporučení nejlepšího místa v bytě.",
   },
   {
-    glyph: "🧭",
+    glyph: "compass",
     title: "Orientace / kompas",
     body: "Aby vám mohla šipka ukázat, kterým směrem vysílač je.",
   },
   {
-    glyph: "📶",
+    glyph: "data",
     title: "Mobilní data",
     body: "Pro změření kvality připojení v místě, kam chcete router umístit.",
   },
@@ -94,7 +95,7 @@ export default function ConsentPage() {
       }
     >
       <p className="step-eyebrow">Než začneme</p>
-      <h1>Souhlas s přístupem k telefonu</h1>
+      <h1>Povolte průvodci přístup k telefonu</h1>
       <p className="lead">
         Abychom vám mohli doporučit nejlepší umístění routeru a provést vás
         zapojením, potřebujeme jednorázově tato oprávnění. Bez nich průvodce
@@ -105,7 +106,7 @@ export default function ConsentPage() {
         {ITEMS.map((item) => (
           <div className="consent-item" key={item.title}>
             <div className="glyph" aria-hidden>
-              {item.glyph}
+              <Icon name={item.glyph} />
             </div>
             <div className="copy">
               <b>{item.title}</b>

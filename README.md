@@ -68,9 +68,59 @@ Rozpoznání modelu na `/router` je 3fázový fallback podle zadání: kamera
 - **TMCZ API** je in-memory stub (`/api/tmcz/submit`) — architektura,
   security a přesný rozsah dat čekají na potvrzení dle kapitoly 3 zadání.
 - **Doporučené místo** se v `/locate` komunikuje live, přímo ve scéně
-  (nejvyšší/magenta sloupec) — přesná souřadnice buňky se dál neuchovává,
+  (magenta špendlík „Nejsilnější signál" a šipka na podlaze) — přesná
+  souřadnice buňky se dál neuchovává,
   protože počátek WebXR `local-floor` prostoru se mezi seancemi neresetuje
   na nic globálně smysluplného.
+
+## Jak vypadá AR
+
+- **Kamerové kroky** (`/router`, `/install`) běží přes celou obrazovku:
+  kamera vyplňuje vše nad instrukční kartou (v landscape je karta vpravo),
+  nahoře je průhledná lišta s postupem. Kamera končí u karty, ne pod ní —
+  model vidí celý snímek, takže cokoli skrytého pod kartou by byl konektor,
+  o kterém zákazník slyší, ale nevidí ho.
+- Detekce mají **rámeček** (plynule dohání detekci a krátce drží při výpadku
+  snímku), **ilustrace** stojí vedle konektoru a šipkou na něj ukazuje
+  (`lib/ar-layout.ts` — velikost podle velikosti detekce, nikdy nepřekrývá
+  cíl ani nezajede pod kartu), hotový krok (zapojený kabel, vložená SIM)
+  se orámuje zeleně. Konektor mimo výřez displeje dostane šipku k okraji.
+- **Heatmapa** (`/locate`) maluje signál na podlahu: každý m² dostane
+  zabarvenou dlaždici a 10 cm drátěný sloupec ve škále světle růžová →
+  magenta (jako mapa pokrytí T-Mobile; jednobarevná škála je čitelná i pro
+  barvoslepé). Nejsilnější místo označí špendlík „Nejsilnější signál",
+  k němu vede šipka na podlaze u nohou zákazníka. Karta dole mluví slovy a
+  čárkami signálu („Silný signál"), Mbit/s jsou až druhotný údaj.
+
+## Testování AR na fotkách z datasetu
+
+V `tests/fixtures/whitemodem/` jsou testovací a validační fotky z datasetu
+WhiteModemFeatures (CC BY 4.0), na kterém byl model natrénován.
+
+```bash
+npm test             # rozmístění ilustrací nad všemi označenými díly (bez modelu, ~100 ms)
+npm run dev          # v jiném terminálu
+npm run ar:preview   # Playwright: skutečný model + UI nad fotkami místo kamery
+```
+
+`ar:preview` nahradí `getUserMedia` canvasem, do kterého kreslí fotky z
+datasetu, projde celé rozpoznání routeru a zapojení na velikostech telefon,
+malý Android, landscape a tablet, a pro každý díl z každé fotky vyfotí
+výsledek. U každého snímku změří geometrii (ilustrace mimo obrazovku, přes
+cíl, pod kartou) a výsledky uloží do `ar-preview/` (`index.html`,
+`report.json`, `sheet-*.png`). `--only gallery|install|router|locate|pages`
+a `--viewports phone,landscape,…` výběr zúží, `--strict` vrátí chybu při
+nalezeném problému.
+
+### Známé omezení modelu
+
+Model vrací třídu `modem` s ~95% jistotou a rámečkem přes celý snímek pro
+**jakýkoli** snímek bez detailů — prázdnou zeď, černý snímek při startu
+kamery, i čistý šum (třetina trénovacích štítků `modem` jsou záběry zblízka
+přes celou fotku). Rozpoznání routeru proto bere rámeček přes celý snímek
+jen tehdy, když je vidět i některý díl routeru (`lib/yolo/evidence.ts`); v
+datasetu to platí pro 99 % takových štítků. Trvalé řešení je dotrénovat
+model s negativními snímky (prázdné pozadí bez štítků).
 
 ## Spuštění
 
@@ -122,18 +172,24 @@ app/
   api/payload, api/ping     nestlačitelný payload + ping pro speedtest
   api/tmcz/submit           stub pro odeslání dat do TMCZ
 lib/
-  ar.ts, sim.ts, columns.ts, speedtest.ts, network.ts, hud.ts   WebXR heatmapa (beze změny)
-  yolo/                      YOLOv8 model loader, detekční smyčka, dekódování výstupu
+  ar.ts, sim.ts, columns.ts, speedtest.ts, network.ts, hud.ts   WebXR heatmapa
+  ar-layout.ts               geometrie AR překryvu (mapování detekcí, umístění ilustrace)
+  yolo/                      YOLOv8 model loader, detekční smyčka, dekódování výstupu,
+                             sledování cílů (useTrackedTargets), filtr falešného „modem" (evidence)
   routers.ts                 registr podporovaných FWA routerů + kroky instalace
   session-store.ts           cross-step stav instalační session (zustand, sessionStorage)
   tmcz.ts                    payload a klient pro odeslání dat do TMCZ
   geo.ts, flow.ts             geo výpočty, pořadí kroků průvodce
 components/
-  StepShell.tsx               sdílená obálka kroku (progress dots, header/footer)
+  StepShell.tsx               sdílená obálka kroku (T-Mobile lišta s postupem, patička)
+  ArCamera.tsx                 celoobrazovková kamera: rámečky, LED značky, ilustrace, navigace
   InstallTourLive.tsx          živá kamerová detekce pro krok zapojení
   InstallTourManual.tsx        manuální checklist pro routery bez detektoru
+  Icon.tsx, Banner.tsx, BrandMark.tsx   ikony, hlášky a značka T
+scripts/ar-preview.mjs        Playwright náhled AR nad fotkami z datasetu
+tests/                        test rozmístění ilustrací + fixtures z datasetu
 public/model/                 YOLOv8n TensorFlow.js model + metadata
-public/router-xiaomi/         fotky pro Xiaomi CB0401v2 5G
+public/router-xiaomi/         fotky a ilustrace kroků pro Xiaomi CB0401v2 5G
 public/router-nokia/          ilustrační ikona pro Nokia FastMile 5G Gateway 3.2
 ```
 

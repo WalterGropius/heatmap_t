@@ -40,12 +40,12 @@ export async function startAR(opts: {
   dir.position.set(2, 4, 1);
   scene.add(dir);
 
-  // white 1 m grid on the real floor, aligned with the heatmap cells,
-  // so the mapping is legible in AR
+  // faint white 1 m grid on the real floor, aligned with the heatmap cells —
+  // the tinted tiles carry the map, the grid only hints at the squares
   const grid = new THREE.GridHelper(30, 30, 0xffffff, 0xffffff);
   const gridMat = grid.material as THREE.LineBasicMaterial;
   gridMat.transparent = true;
-  gridMat.opacity = 0.35;
+  gridMat.opacity = 0.2;
   gridMat.depthWrite = false;
   scene.add(grid);
 
@@ -62,7 +62,9 @@ export async function startAR(opts: {
     const center = field.bestCellCenter();
     if (!at) return;
     const here = field.cellAt(at.x, at.z);
-    hud.hereMbps = here?.mbps ?? 0;
+    // a square walked into but not measured yet shows the latest reading,
+    // taken a moment ago a step away, rather than blinking to "unmeasured"
+    hud.hereMbps = here?.mbps ?? hud.mbps;
     hud.hereScore = field.scoreFor(hud.hereMbps);
     hud.distanceToBestM = center ? Math.hypot(center.x - at.x, center.z - at.z) : null;
     hud.onBestSpot = field.bestCellKey !== null && field.keyAt(at.x, at.z) === field.bestCellKey;
@@ -97,6 +99,7 @@ export async function startAR(opts: {
           tracking = true;
           const p = pose.transform.position;
           trail.push(performance.now(), p.x, p.z);
+          field.setViewer(p.x, p.z);
         }
       }
     }

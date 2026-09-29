@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import StepShell from "@/components/StepShell";
 import { watchConnection, type ConnectionKind } from "@/lib/network";
 import { useSessionStore } from "@/lib/session-store";
+import Banner from "@/components/Banner";
 
 const CONN_LABEL: Record<ConnectionKind, string> = {
   wifi: "Wi-Fi",
@@ -12,6 +13,12 @@ const CONN_LABEL: Record<ConnectionKind, string> = {
   ethernet: "Kabel",
   unknown: "Typ sítě se nepodařilo zjistit",
 };
+
+const CHOICES = [
+  { id: "yes", label: "Ano, T-Mobile" },
+  { id: "no", label: "Ne, jiný operátor" },
+  { id: "unknown", label: "Nevím" },
+] as const;
 
 export default function NetworkCheckPage() {
   const nav = useRouter();
@@ -49,7 +56,7 @@ export default function NetworkCheckPage() {
         </>
       }
     >
-      <p className="step-eyebrow">Krok 2 · Připojení</p>
+      <p className="step-eyebrow">Připojení</p>
       <h1>Zkontrolujeme vaše připojení</h1>
       <p className="lead">
         Měření síly signálu má smysl jen na mobilních datech T-Mobile — SIM
@@ -57,37 +64,32 @@ export default function NetworkCheckPage() {
         pokrytí mobilní sítí.
       </p>
 
-      <div className={`banner ${conn === "wifi" ? "warning" : conn === "cellular" ? "success" : "info"}`}>
-        <span aria-hidden>📶</span>
-        <span>
-          Aktuálně zjištěno: <b>{CONN_LABEL[conn]}</b>
-          {conn === "wifi" && " — pro měření prosím vypněte Wi-Fi."}
-        </span>
-      </div>
+      <Banner tone={conn === "wifi" ? "warning" : conn === "cellular" ? "success" : "info"} icon={conn === "wifi" ? "wifi" : "signal"}>
+        Aktuálně zjištěno: <b>{CONN_LABEL[conn]}</b>
+        {conn === "wifi" && " — pro měření prosím vypněte Wi-Fi."}
+      </Banner>
 
-      <p style={{ fontWeight: 700, fontSize: 14, margin: "20px 0 10px" }}>
-        Máte zapnutá mobilní data v síti T-Mobile?
-      </p>
-      <div className="option-list">
-        <div className={`option-card ${choice === "yes" ? "selected" : ""}`} onClick={() => setChoice("yes")}>
-          <b>Ano, T-Mobile</b>
-        </div>
-        <div className={`option-card ${choice === "no" ? "selected" : ""}`} onClick={() => setChoice("no")}>
-          <b>Ne, jiný operátor</b>
-        </div>
-        <div className={`option-card ${choice === "unknown" ? "selected" : ""}`} onClick={() => setChoice("unknown")}>
-          <b>Nevím</b>
-        </div>
+      <p className="question">Máte zapnutá mobilní data v síti T-Mobile?</p>
+      <div className="option-list" role="radiogroup">
+        {CHOICES.map((c) => (
+          <button
+            key={c.id}
+            role="radio"
+            aria-checked={choice === c.id}
+            className={`option-card ${choice === c.id ? "selected" : ""}`}
+            onClick={() => setChoice(c.id)}
+          >
+            <b>{c.label}</b>
+            <span className="radio" aria-hidden />
+          </button>
+        ))}
       </div>
 
       {choice && choice !== "yes" && (
-        <div className="banner warning">
-          <span aria-hidden>ℹ️</span>
-          <span>
-            Bez mobilních dat T-Mobile přeskočíme měření síly signálu a
-            doporučíme umístění jen podle směru k vysílači.
-          </span>
-        </div>
+        <Banner tone="warning" icon="info">
+          Bez mobilních dat T-Mobile přeskočíme měření síly signálu a
+          doporučíme umístění jen podle směru k vysílači.
+        </Banner>
       )}
     </StepShell>
   );

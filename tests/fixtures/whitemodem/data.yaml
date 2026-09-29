@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 11
+names: ['lan', 'modem', 'off', 'on', 'onbutton', 'orange', 'pow', 'powcab', 'sim', 'siminside', 'simopen']
+
+roboflow:
+  workspace: modem
+  project: whitemodemfeatures
+  version: 4
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/modem/whitemodemfeatures/dataset/4

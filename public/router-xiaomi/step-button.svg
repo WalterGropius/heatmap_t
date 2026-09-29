@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 90" width="200" height="90">
+  <!-- arrow pointing at the power button -->
+  <path d="M6 45 40 19v15h44v22H40v15z" fill="#e20074"/>
+  <!-- the button itself: a recessed round key with the power glyph -->
+  <circle cx="148" cy="45" r="36" fill="#ffffff" stroke="#bdbdbd" stroke-width="2"/>
+  <circle cx="148" cy="45" r="27" fill="#f4f4f4" stroke="#d4d4d4" stroke-width="1.5"/>
+  <g fill="none" stroke="#6b6b6b" stroke-width="4" stroke-linecap="round">
+    <path d="M148 30v13"/>
+    <path d="M139 35.5a13 13 0 1 0 18 0"/>
+  </g>
+</svg>

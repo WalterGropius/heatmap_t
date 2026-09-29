@@ -3,6 +3,18 @@
 import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSessionStore } from "@/lib/session-store";
+import BrandMark from "@/components/BrandMark";
+import Icon, { type IconName } from "@/components/Icon";
+
+const STEPS: { icon: IconName; title: string; body: string }[] = [
+  { icon: "camera", title: "Rozpoznáme router", body: "Stačí na něj namířit kameru telefonu." },
+  {
+    icon: "signal",
+    title: "Najdeme nejsilnější signál",
+    body: "Signál namalujeme na podlahu vašeho bytu a ukážeme, kam router postavit.",
+  },
+  { icon: "plug", title: "Provedeme zapojením", body: "SIM karta, kabely, zapnutí a kontrola kontrolek." },
+];
 
 function LandingContent() {
   const router = useRouter();
@@ -27,32 +39,52 @@ function LandingContent() {
 
   return (
     <main className="landing">
-      <div className="hero">
-        <span className="badge">AR průvodce instalací · FWA</span>
-        <h1>
-          Zapojíme váš router.
-          <br />
-          <span className="grad">Krok za krokem.</span>
-        </h1>
-        <p>
-          Rozšířená realita vám pomůže poznat router, najde nejlepší místo pro
-          co nejsilnější signál a provede vás zapojením SIM karty, kabelů a
-          spuštěním — až do chvíle, kdy jste v síti T-Mobile.
-        </p>
-      </div>
+      <section className="landing-hero">
+        <div className="landing-top">
+          <BrandMark inverted size={34} />
+          <span>Instalace routeru</span>
+        </div>
+        <div className="landing-copy">
+          <span className="badge">Internet na doma · AR průvodce</span>
+          <h1>
+            Zapojíme váš router.
+            <br />
+            Krok za krokem.
+          </h1>
+          <p>
+            Rozšířená realita vám pomůže poznat router, najde místo s nejsilnějším
+            signálem a provede vás zapojením — až do chvíle, kdy jste v síti T-Mobile.
+          </p>
+        </div>
+        <img className="landing-product" src="/router-xiaomi/router.png" alt="" />
+      </section>
 
-      <div className="cta-row">
-        <button className="btn btn-primary" onClick={() => router.push("/consent")}>
+      <div className="landing-body">
+        <ol className="landing-steps">
+          {STEPS.map((step) => (
+            <li key={step.title}>
+              <span className="ico">
+                <Icon name={step.icon} />
+              </span>
+              <div>
+                <b>{step.title}</b>
+                <span>{step.body}</span>
+              </div>
+            </li>
+          ))}
+        </ol>
+
+        <button className="btn btn-primary btn-block" onClick={() => router.push("/consent")}>
           Spustit instalaci
         </button>
+
+        <p className="support-note">
+          Budeme potřebovat přístup ke kameře, poloze a orientaci telefonu, aby
+          vám průvodce dokázal doporučit nejlepší umístění routeru.
+        </p>
+
+        <div className="footer">FWA AR instalace · T-Mobile</div>
       </div>
-
-      <p className="support-note">
-        Budeme potřebovat přístup ke kameře, poloze a orientaci telefonu, aby
-        vám průvodce dokázal doporučit nejlepší umístění routeru.
-      </p>
-
-      <div className="footer">FWA AR instalace · T-Mobile</div>
     </main>
   );
 }
